@@ -27,6 +27,7 @@ import {
 } from "@/controllers/shop.controller";
 import taskRouter from "@/routes/task.routes";
 import smsRouter from "@/routes/sms.routes";
+import contactRouter from "@/routes/contact.routes";
 
 const router = Router();
 
@@ -41,6 +42,7 @@ router.use("/v1/auth", authRouter);
 router.get("/v1/users/verify-email", verifyEmail);
 router.use("/v1/onboarding", onboardingRouter);
 router.use("/v1/admin", adminRouter);
+router.use("/v1/contact", contactRouter);
 
 // Public Shop Onboarding Routes
 router.post("/v1/shops/generate-ids", generateShopIds);

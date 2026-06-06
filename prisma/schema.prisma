@@ -677,3 +677,13 @@ model StaffRole {
   @@index([tenantId])
   @@index([shopId])
 }
+
+model ContactMessage {
+  id        String   @id @default(cuid())
+  name      String
+  email     String
+  subject   String?
+  message   String
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
