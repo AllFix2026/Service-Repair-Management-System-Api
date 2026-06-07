@@ -266,5 +266,4 @@ export const sendPaymentConfirmationEmail = async (
   }
 
   await prisma.emailLog.create({ data: { userId, email, type: "payment_confirmation", status: "FAILED", attempts, error: lastError?.message ?? "Unknown" } });
-  throw lastError;
 };

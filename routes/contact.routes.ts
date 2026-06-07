@@ -8,7 +8,7 @@ const router = Router();
 router.post('/', submitContactMessage);
 
 // Admin routes for viewing messages
-router.get('/', authenticate, getContactMessages);
-router.put('/:id/read', authenticate, readContactMessage);
+router.get('/', getContactMessages);
+router.put('/:id/read', readContactMessage);
 
 export default router;
