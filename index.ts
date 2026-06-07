@@ -4,7 +4,7 @@ import { prisma } from "./db/prisma";
 import { initSubscriptionJobs } from "./jobs/subscription.job";
 
 // v1.0.1 - updated email config
-const PORT = Number(process.env.PORT ?? 3000);
+const PORT = Number(process.env.PORT ?? 8000);
 
 const server = app.listen(PORT, () => {
   console.log(`✅ Server running on http://localhost:${PORT}`);
