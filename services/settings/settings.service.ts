@@ -43,6 +43,12 @@ export const getShopSettings = async (
 
     },
     logoUrl: shop.logoUrl,
+    subscription: {
+      plan: shop.subscriptionPlan || "SINGLE",
+      status: shop.subscriptionStatus || "SUSPENDED",
+      startDate: shop.subscriptionStartDate,
+      endDate: shop.subscriptionEndDate,
+    }
   };
 };
 

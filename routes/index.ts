@@ -28,6 +28,7 @@ import {
 import taskRouter from "@/routes/task.routes";
 import smsRouter from "@/routes/sms.routes";
 import contactRouter from "@/routes/contact.routes";
+import searchRouter from "@/routes/search.routes";
 
 const router = Router();
 
@@ -71,5 +72,6 @@ router.use("/v1/uploads", uploadsRouter);
 
 router.use("/v1/tasks", taskRouter);
 router.use("/v1/sms", smsRouter);
+router.use("/v1/search", searchRouter);
 
 export default router;
