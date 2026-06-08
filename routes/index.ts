@@ -1,6 +1,7 @@
 import { Router } from "express";
-import { apiRateLimiter } from "@/middlewares/rateLimit.middleware";
+import { apiRateLimiter, shopRateLimiter } from "@/middlewares/rateLimit.middleware";
 import { authenticate } from "@/middlewares/auth.middleware";
+import { tenantMiddleware } from "@/middlewares/tenant.middleware";
 import authRouter from "@/routes/auth.routes";
 import usersRouter from "@/routes/users.routes";
 import shopsRouter from "@/routes/shops.routes";
@@ -32,13 +33,14 @@ import searchRouter from "@/routes/search.routes";
 
 const router = Router();
 
+// Global rate limiter — 300 req/min per IP (DDoS guard)
 router.use(apiRateLimiter);
 
 router.get("/health", (_req, res) => {
   res.status(200).json({ success: true, status: "UP", timestamp: new Date().toISOString() });
 });
 
-// Public routes
+// ─── Public Routes ──────────────────────────────────────────────────────────
 router.use("/v1/auth", authRouter);
 router.get("/v1/users/verify-email", verifyEmail);
 router.use("/v1/onboarding", onboardingRouter);
@@ -55,8 +57,14 @@ router.use("/v1/payment", paymentRouter);
 router.use("/v1/subscription", subscriptionRouter);
 router.use("/v1/staff", staffRouter);
 
-// Protected routes (authentication required)
+// ─── Protected Routes ───────────────────────────────────────────────────────
+// authenticate   → verifies JWT, attaches req.user
+// shopRateLimiter → 100 req/min per shop (prevents one shop from flooding API)
+// tenantMiddleware → sets Postgres session var for RLS isolation
 router.use(authenticate);
+router.use(shopRateLimiter);
+router.use(tenantMiddleware);
+
 router.use("/v1/users", usersRouter);
 router.use("/v1/shops", shopsRouter);
 router.use("/v1/repairs", repairsRouter);
@@ -69,9 +77,8 @@ router.use("/v1/invoices", invoicesRouter);
 router.use("/v1/appointments", appointmentsRouter);
 router.use("/v1/reports", reportsRouter);
 router.use("/v1/uploads", uploadsRouter);
-
 router.use("/v1/tasks", taskRouter);
 router.use("/v1/sms", smsRouter);
 router.use("/v1/search", searchRouter);
 
-export default router;
+export default router;

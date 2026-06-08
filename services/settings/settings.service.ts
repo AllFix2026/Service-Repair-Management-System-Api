@@ -1,6 +1,7 @@
 import { prisma } from "@/db/prisma";
 import { Prisma } from "@prisma/client";
 import type { UpdateSettingsInput } from "@/validators/settings/settings.validator";
+import { getCache, setCache, invalidateCache } from "@/utils/cache.util";
 
 export type ShopSettingsResponse = {
   shopName: string;
@@ -13,6 +14,11 @@ export const getShopSettings = async (
   tenantId: string,
   shopId: string,
 ) => {
+  // Cache shop settings for 60s — avoids DB hit on every dashboard/settings load
+  const cacheKey = `shop_settings:${shopId}`;
+  const cached = getCache<ReturnType<typeof buildSettingsResponse>>(cacheKey);
+  if (cached) return cached;
+
   const shop = await prisma.shop.findFirst({
     where: { id: shopId, tenantId },
     include: { settings: true },
@@ -22,6 +28,12 @@ export const getShopSettings = async (
     throw { status: 404, code: "NOT_FOUND" };
   }
 
+  const result = buildSettingsResponse(shop);
+  setCache(cacheKey, result, 60);
+  return result;
+};
+
+function buildSettingsResponse(shop: any) {
   return {
     shop: {
       name: shop.name,
@@ -40,7 +52,6 @@ export const getShopSettings = async (
       appearance: shop.settings?.appearance ?? {},
       customerTiers: (shop.settings?.appearance as any)?.customerTiers ?? [],
       securityRules: shop.settings?.securityRules ?? {},
-
     },
     logoUrl: shop.logoUrl,
     subscription: {
@@ -48,9 +59,9 @@ export const getShopSettings = async (
       status: shop.subscriptionStatus || "SUSPENDED",
       startDate: shop.subscriptionStartDate,
       endDate: shop.subscriptionEndDate,
-    }
+    },
   };
-};
+}
 
 export const updateShopSettings = async (
   tenantId: string,
@@ -131,6 +142,10 @@ export const updateShopSettings = async (
         update: settingsUpdatePayload,
       });
     }
+
+    // Bust the cache so next read gets fresh data from DB
+    invalidateCache(`shop_settings:${shopId}`);
+
   } catch (error: any) {
     if (error.code === "P2025") {
       throw { status: 404, code: "NOT_FOUND" };
