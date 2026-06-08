@@ -13,4 +13,12 @@ router.get(
   subscriptionController.checkSubscriptionExpiry
 );
 
+// Shop owner manual renewal
+router.post(
+  "/renew",
+  authenticate,
+  authorizeRoles("ADMIN", "MANAGER"),
+  subscriptionController.renewSubscription
+);
+
 export default router;

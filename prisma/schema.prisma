@@ -5,7 +5,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider  = "postgresql"
 }
 
 enum UserRole {
@@ -221,6 +221,10 @@ model Customer {
 
   @@index([tenantId])
   @@index([shopId])
+  // Composite indexes for search & list queries
+  @@index([shopId, createdAt])
+  @@index([shopId, name])
+  @@index([shopId, phone])
 }
 
 model CustomerNote {
@@ -260,6 +264,9 @@ model Device {
   @@index([shopId])
   @@index([customerId])
   @@unique([shopId, imei])
+  // Composite index for device listing
+  @@index([shopId, createdAt])
+  @@index([shopId, brand])
 }
 
 model Repair {
@@ -297,6 +304,11 @@ model Repair {
   @@index([deviceId])
   @@index([customerId])
   @@index([technicianId])
+  // Composite indexes for 300-shop scale
+  @@index([shopId, createdAt])
+  @@index([shopId, status])
+  @@index([shopId, customerId])
+  @@index([tenantId, shopId])
 }
 
 enum Priority {
@@ -370,6 +382,10 @@ model Notification {
   @@index([repairId])
   @@index([isRead])
   @@index([isCleared])
+  // Composite indexes for notification queries
+  @@index([shopId, isRead, createdAt])
+  @@index([shopId, isCleared, createdAt])
+  @@index([shopId, status, createdAt])
 }
 
 model EmailVerificationToken {
@@ -428,6 +444,10 @@ model Payment {
   @@index([repairId])
   @@index([customerId])
   @@index([paymentDate])
+  // Composite indexes for payment reports
+  @@index([shopId, paymentDate])
+  @@index([shopId, status])
+  @@index([shopId, customerId])
 }
 
 model PartsInventory {
@@ -458,6 +478,10 @@ model PartsInventory {
   @@index([shopId])
   @@index([category])
   @@index([supplierId])
+  // Composite indexes for inventory queries
+  @@index([shopId, isActive])
+  @@index([shopId, category])
+  @@index([shopId, partName])
 }
 
 model Supplier {
@@ -633,6 +657,10 @@ model Appointment {
   @@index([tenantId])
   @@index([shopId])
   @@index([scheduledAt])
+  // Composite indexes for appointment calendar queries
+  @@index([shopId, scheduledAt])
+  @@index([shopId, status])
+  @@index([shopId, technicianId])
 }
 
 model Task {
@@ -660,6 +688,10 @@ model Task {
   @@index([shopId])
   @@index([assignedToUserId])
   @@index([status])
+  // Composite indexes for task management
+  @@index([shopId, status])
+  @@index([shopId, assignedToUserId])
+  @@index([shopId, dueDate])
 }
 
 model StaffRole {
@@ -686,4 +718,29 @@ model ContactMessage {
   message   String
   isRead    Boolean  @default(false)
   createdAt DateTime @default(now())
+}
+
+// ─── Archival Table ────────────────────────────────────────────────────────
+// Repairs older than 2 years (DELIVERED/PAID) are moved here by the weekly
+// archival cron job to keep the main repairs table lean and fast.
+model RepairArchive {
+  id                String   @id
+  tenantId          String
+  shopId            String
+  customerId        String
+  deviceId          String
+  reference         String
+  status            String
+  issue             String?
+  diagnosis         String?
+  estimatedCost     Int?
+  finalCost         Int?
+  technicianId      String?
+  originalCreatedAt DateTime
+  archivedAt        DateTime @default(now())
+
+  @@index([tenantId])
+  @@index([shopId])
+  @@index([archivedAt])
+  @@index([shopId, originalCreatedAt])
 }
