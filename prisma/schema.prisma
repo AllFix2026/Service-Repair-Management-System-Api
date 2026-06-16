@@ -121,6 +121,7 @@ model Shop {
   appointments   Appointment[]
   tasks          Task[]
   staffRoles     StaffRole[]
+  requestOffers  RequestOffer[]
   
   @@index([tenantId])
 }
@@ -299,6 +300,8 @@ model Repair {
   notes           RepairNote[]
   timeline        RepairTimelineEvent[]
   tasks             Task[]
+  sourceRequestId String?      // FK to ServiceRequest (nullable)
+
   @@index([tenantId])
   @@index([shopId])
   @@index([deviceId])
@@ -743,4 +746,93 @@ model RepairArchive {
   @@index([shopId])
   @@index([archivedAt])
   @@index([shopId, originalCreatedAt])
-}
+}
+
+// ─── Online Request Portal (ORP) Tables ─────────────────────────────────────
+
+model ServiceRequest {
+  id                String   @id @default(uuid())
+  requestType       String   // 'repair', 'buy', 'sell', 'accessory', 'other'
+  deviceType        String?  // e.g. 'iPhone 13'
+  description       String   @db.Text
+  imageUrls         String[]
+  
+  // AI Suggestions
+  aiCategory        String?
+  aiBudgetMin       Int?
+  aiBudgetMax       Int?
+  
+  // Customer Input
+  customerBudgetMin Int
+  customerBudgetMax Int
+  
+  // Location
+  latitude          Float?
+  longitude         Float?
+  locationText      String?
+  
+  // Customer Contact
+  customerName      String
+  customerPhone     String
+  customerEmail     String?
+  
+  // Status: pending, offered, confirmed, in_progress, completed, cancelled
+  status            String   @default("pending")
+  
+  // Accepted Offer
+  acceptedOfferId   String?  @unique // unique constraint for one-to-one relation
+  acceptedOffer     RequestOffer? @relation("AcceptedOffer", fields: [acceptedOfferId], references: [id])
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @default(now()) @updatedAt
+
+  offers            RequestOffer[] @relation("RequestOffers")
+  deliveryJobs      DeliveryJob[]
+
+  @@index([status])
+  @@index([latitude, longitude])
+}
+
+model RequestOffer {
+  id              String   @id @default(uuid())
+  requestId       String
+  request         ServiceRequest @relation("RequestOffers", fields: [requestId], references: [id], onDelete: Cascade)
+  
+  shopId          String
+  shop            Shop     @relation(fields: [shopId], references: [id])
+  
+  quotedAmount    Int
+  message         String?  @db.Text
+  
+  // Status: pending, accepted, rejected, expired
+  status          String   @default("pending")
+  
+  createdAt       DateTime @default(now())
+
+  acceptedForRequest ServiceRequest? @relation("AcceptedOffer")
+  deliveryJobs       DeliveryJob[]
+
+  @@index([requestId])
+  @@index([shopId])
+}
+
+model DeliveryJob {
+  id              String   @id @default(uuid())
+  
+  requestId       String
+  request         ServiceRequest @relation(fields: [requestId], references: [id])
+  
+  offerId         String
+  offer           RequestOffer   @relation(fields: [offerId], references: [id])
+  
+  pickupAddress   String?
+  deliveryAddress String?
+  
+  partner         String   @default("manual") // 'manual', 'pickme', etc.
+  
+  // Status: pending, picked_up, delivered, failed
+  status          String   @default("pending")
+  
+  createdAt       DateTime @default(now())
+}
+
