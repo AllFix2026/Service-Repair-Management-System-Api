@@ -1,14 +1,16 @@
 {
   "name": "service-repair-management-system-api",
   "version": "1.0.0",
-  "description": "<div align=\"center\">",
+  "description": "Service Repair Management System - Backend API",
   "main": "index.js",
   "scripts": {
     "dev": "nodemon --watch . --ext ts --exec \"ts-node -r tsconfig-paths/register index.ts\"",
     "start": "ts-node -r tsconfig-paths/register index.ts",
     "typecheck": "tsc --noEmit",
     "test": "echo \"Error: no test specified\" && exit 1",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "seed:100-shops": "ts-node -r tsconfig-paths/register scripts/seed-100-shops-6months.ts",
+    "benchmark:api": "ts-node -r tsconfig-paths/register scripts/api-latency-benchmark.ts"
   },
   "repository": {
     "type": "git",
@@ -50,6 +52,7 @@
   "dependencies": {
     "@prisma/adapter-pg": "^7.4.1",
     "@prisma/client": "^7.4.1",
+    "@faker-js/faker": "^8.3.1",
     "bcrypt": "^6.0.0",
     "bcryptjs": "^3.0.2",
     "compression": "^1.8.1",

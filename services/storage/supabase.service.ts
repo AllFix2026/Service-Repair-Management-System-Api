@@ -3,22 +3,29 @@ import { getEnv } from '../../utils/env.util';
 import { v4 as uuidv4 } from 'uuid';
 import WebSocket from 'ws';
 
-// Initialize Supabase client
 const supabaseUrl = getEnv('SUPABASE_URL', { required: false }) || '';
 const supabaseKey = getEnv('SUPABASE_SERVICE_KEY', { required: false }) || '';
 
-if (!supabaseUrl || !supabaseKey) {
-  console.warn('Supabase URL or Service Key is missing. Storage uploads will fail.');
-}
+let supabase: ReturnType<typeof createClient> | null = null;
 
-const supabase = createClient(supabaseUrl, supabaseKey, {
-  auth: {
-    persistSession: false,
-  },
-  realtime: {
-    transport: WebSocket as any,
-  },
-});
+function getSupabaseClient() {
+  if (!supabaseUrl || !supabaseKey) {
+    throw new Error('Supabase URL or Service Key is missing. Storage uploads are unavailable.');
+  }
+
+  if (!supabase) {
+    supabase = createClient(supabaseUrl, supabaseKey, {
+      auth: {
+        persistSession: false,
+      },
+      realtime: {
+        transport: WebSocket as any,
+      },
+    });
+  }
+
+  return supabase;
+}
 
 /**
  * Uploads a file to Supabase Storage
@@ -35,10 +42,11 @@ export const uploadToSupabase = async (
   folder = 'repairs'
 ): Promise<string> => {
   try {
+    const supabaseClient = getSupabaseClient();
     const fileExt = fileName.split('.').pop() || 'png';
     const uniqueFileName = `${folder}/${uuidv4()}.${fileExt}`;
 
-    const { data, error } = await supabase.storage
+    const { data, error } = await supabaseClient.storage
       .from('repair-photos')
       .upload(uniqueFileName, fileBuffer, {
         contentType: mimeType,
@@ -51,7 +59,7 @@ export const uploadToSupabase = async (
     }
 
     // Get public URL
-    const { data: publicUrlData } = supabase.storage
+    const { data: publicUrlData } = supabaseClient.storage
       .from('repair-photos')
       .getPublicUrl(data.path);
 

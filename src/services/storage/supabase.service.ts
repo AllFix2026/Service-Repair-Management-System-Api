@@ -3,15 +3,22 @@ import { env } from '@/utils/env.util';
 import { logger } from '@/utils/common.util';
 import { v4 as uuidv4 } from 'uuid';
 
-// Initialize Supabase client
 const supabaseUrl = env.SUPABASE_URL || '';
 const supabaseKey = env.SUPABASE_SERVICE_KEY || '';
 
-if (!supabaseUrl || !supabaseKey) {
-  logger.warn('Supabase URL or Service Key is missing. Storage uploads will fail.');
-}
+let supabase: ReturnType<typeof createClient> | null = null;
 
-const supabase = createClient(supabaseUrl, supabaseKey);
+function getSupabaseClient() {
+  if (!supabaseUrl || !supabaseKey) {
+    throw new Error('Supabase URL or Service Key is missing. Storage uploads are unavailable.');
+  }
+
+  if (!supabase) {
+    supabase = createClient(supabaseUrl, supabaseKey);
+  }
+
+  return supabase;
+}
 
 /**
  * Uploads a file to Supabase Storage
@@ -28,10 +35,11 @@ export const uploadToSupabase = async (
   folder = 'repairs'
 ): Promise<string> => {
   try {
+    const supabaseClient = getSupabaseClient();
     const fileExt = fileName.split('.').pop() || 'png';
     const uniqueFileName = `${folder}/${uuidv4()}.${fileExt}`;
 
-    const { data, error } = await supabase.storage
+    const { data, error } = await supabaseClient.storage
       .from('repair-photos')
       .upload(uniqueFileName, fileBuffer, {
         contentType: mimeType,
@@ -44,7 +52,7 @@ export const uploadToSupabase = async (
     }
 
     // Get public URL
-    const { data: publicUrlData } = supabase.storage
+    const { data: publicUrlData } = supabaseClient.storage
       .from('repair-photos')
       .getPublicUrl(data.path);
 

@@ -1,0 +1,348 @@
+{
+  "generatedAt": "2026-06-16T02:19:21.395Z",
+  "baseUrl": "http://localhost:3000",
+  "testUser": "admin.shop009@latency-test.local",
+  "shopId": "cmqfdo2in04d54wt9pxzak9oy",
+  "results": [
+    {
+      "endpoint": "/api/v1/repairs",
+      "method": "GET",
+      "run1Ms": 1025,
+      "run2Ms": 1257,
+      "run3Ms": 764,
+      "avgMs": 1015,
+      "slowestMs": 1257,
+      "passFail": "❌ Fail",
+      "statusCodes": [
+        200,
+        200,
+        200
+      ]
+    },
+    {
+      "endpoint": "/api/v1/repairs/cmqfdpgmc04j54wt9gve6inp4",
+      "method": "GET",
+      "run1Ms": 2509,
+      "run2Ms": 1070,
+      "run3Ms": 1077,
+      "avgMs": 1552,
+      "slowestMs": 2509,
+      "passFail": "❌ Critical",
+      "statusCodes": [
+        200,
+        200,
+        200
+      ]
+    },
+    {
+      "endpoint": "/api/v1/repairs",
+      "method": "POST",
+      "run1Ms": 1137,
+      "run2Ms": 1029,
+      "run3Ms": 1010,
+      "avgMs": 1059,
+      "slowestMs": 1137,
+      "passFail": "❌ Fail",
+      "statusCodes": [
+        201,
+        201,
+        201
+      ]
+    },
+    {
+      "endpoint": "/api/v1/repairs/cmqfdpgmc04j54wt9gve6inp4",
+      "method": "PATCH",
+      "run1Ms": 1676,
+      "run2Ms": 1719,
+      "run3Ms": 1722,
+      "avgMs": 1706,
+      "slowestMs": 1722,
+      "passFail": "❌ Fail",
+      "statusCodes": [
+        200,
+        200,
+        200
+      ]
+    },
+    {
+      "endpoint": "/api/v1/customers",
+      "method": "GET",
+      "run1Ms": 1149,
+      "run2Ms": 1142,
+      "run3Ms": 859,
+      "avgMs": 1050,
+      "slowestMs": 1149,
+      "passFail": "❌ Fail",
+      "statusCodes": [
+        200,
+        200,
+        200
+      ]
+    },
+    {
+      "endpoint": "/api/v1/customers/cmqfdojk204f44wt9oc0pgbl7",
+      "method": "GET",
+      "run1Ms": 1089,
+      "run2Ms": 1019,
+      "run3Ms": 1000,
+      "avgMs": 1036,
+      "slowestMs": 1089,
+      "passFail": "❌ Fail",
+      "statusCodes": [
+        200,
+        200,
+        200
+      ]
+    },
+    {
+      "endpoint": "/api/v1/inventory",
+      "method": "GET",
+      "run1Ms": 539,
+      "run2Ms": 298,
+      "run3Ms": 291,
+      "avgMs": 376,
+      "slowestMs": 539,
+      "passFail": "✅ Pass",
+      "statusCodes": [
+        200,
+        200,
+        200
+      ]
+    },
+    {
+      "endpoint": "/api/v1/inventory/summary",
+      "method": "GET",
+      "run1Ms": 569,
+      "run2Ms": 853,
+      "run3Ms": 583,
+      "avgMs": 668,
+      "slowestMs": 853,
+      "passFail": "❌ Fail",
+      "statusCodes": [
+        200,
+        200,
+        200
+      ]
+    },
+    {
+      "endpoint": "/api/v1/staff",
+      "method": "GET",
+      "run1Ms": 287,
+      "run2Ms": 285,
+      "run3Ms": 285,
+      "avgMs": 286,
+      "slowestMs": 287,
+      "passFail": "✅ Pass",
+      "statusCodes": [
+        200,
+        200,
+        200
+      ]
+    },
+    {
+      "endpoint": "/api/v1/dashboard/analytics",
+      "method": "GET",
+      "run1Ms": 29693,
+      "run2Ms": 287,
+      "run3Ms": 298,
+      "avgMs": 10093,
+      "slowestMs": 29693,
+      "passFail": "❌ Critical",
+      "statusCodes": [
+        200,
+        200,
+        200
+      ]
+    },
+    {
+      "endpoint": "/api/v1/dashboard/today-repairs",
+      "method": "GET",
+      "run1Ms": 573,
+      "run2Ms": 570,
+      "run3Ms": 568,
+      "avgMs": 570,
+      "slowestMs": 573,
+      "passFail": "✅ Pass",
+      "statusCodes": [
+        200,
+        200,
+        200
+      ]
+    },
+    {
+      "endpoint": "/api/v1/dashboard/pending-repairs",
+      "method": "GET",
+      "run1Ms": 585,
+      "run2Ms": 568,
+      "run3Ms": 568,
+      "avgMs": 573,
+      "slowestMs": 585,
+      "passFail": "✅ Pass",
+      "statusCodes": [
+        200,
+        200,
+        200
+      ]
+    },
+    {
+      "endpoint": "/api/v1/invoices",
+      "method": "GET",
+      "run1Ms": 3077,
+      "run2Ms": 1273,
+      "run3Ms": 1401,
+      "avgMs": 1917,
+      "slowestMs": 3077,
+      "passFail": "❌ Critical",
+      "statusCodes": [
+        200,
+        200,
+        200
+      ]
+    },
+    {
+      "endpoint": "/api/v1/reports/repairs",
+      "method": "GET",
+      "run1Ms": 865,
+      "run2Ms": 875,
+      "run3Ms": 863,
+      "avgMs": 868,
+      "slowestMs": 875,
+      "passFail": "❌ Fail",
+      "statusCodes": [
+        200,
+        200,
+        200
+      ]
+    },
+    {
+      "endpoint": "/api/v1/reports/customers",
+      "method": "GET",
+      "run1Ms": 857,
+      "run2Ms": 570,
+      "run3Ms": 571,
+      "avgMs": 666,
+      "slowestMs": 857,
+      "passFail": "❌ Fail",
+      "statusCodes": [
+        200,
+        200,
+        200
+      ]
+    },
+    {
+      "endpoint": "/api/v1/reports/inventory",
+      "method": "GET",
+      "run1Ms": 2809,
+      "run2Ms": 1967,
+      "run3Ms": 1791,
+      "avgMs": 2189,
+      "slowestMs": 2809,
+      "passFail": "❌ Critical",
+      "statusCodes": [
+        200,
+        200,
+        200
+      ]
+    },
+    {
+      "endpoint": "/api/v1/dashboard/notifications/mark-read",
+      "method": "PATCH",
+      "run1Ms": 1011,
+      "run2Ms": 1008,
+      "run3Ms": 1008,
+      "avgMs": 1009,
+      "slowestMs": 1011,
+      "passFail": "❌ Fail",
+      "statusCodes": [
+        200,
+        200,
+        200
+      ]
+    },
+    {
+      "endpoint": "/api/v1/dashboard/notifications/clear",
+      "method": "PATCH",
+      "run1Ms": 1001,
+      "run2Ms": 1014,
+      "run3Ms": 1006,
+      "avgMs": 1007,
+      "slowestMs": 1014,
+      "passFail": "❌ Fail",
+      "statusCodes": [
+        200,
+        200,
+        200
+      ]
+    },
+    {
+      "endpoint": "/api/v1/staff/me",
+      "method": "GET",
+      "run1Ms": 255,
+      "run2Ms": 259,
+      "run3Ms": 256,
+      "avgMs": 257,
+      "slowestMs": 259,
+      "passFail": "✅ Pass",
+      "statusCodes": [
+        200,
+        200,
+        200
+      ]
+    },
+    {
+      "endpoint": "/api/v1/staff/roles",
+      "method": "GET",
+      "run1Ms": 258,
+      "run2Ms": 293,
+      "run3Ms": 270,
+      "avgMs": 274,
+      "slowestMs": 293,
+      "passFail": "✅ Pass",
+      "statusCodes": [
+        500,
+        500,
+        500
+      ]
+    },
+    {
+      "endpoint": "/api/v1/search?q=screen",
+      "method": "GET",
+      "run1Ms": 2809,
+      "run2Ms": 806,
+      "run3Ms": 780,
+      "avgMs": 1465,
+      "slowestMs": 2809,
+      "passFail": "❌ Critical",
+      "statusCodes": [
+        200,
+        200,
+        200
+      ]
+    }
+  ]
+}
+
+
+Endpoint                           | Method | Run 1  | Run 2  | Run 3  | Avg    | Slowest | Pass/Fail
+-----------------------------------|--------|--------|--------|--------|--------|---------|----------
+Repairs list                       | GET    | 1025ms | 1257ms | 764ms  | 1015ms | 1257ms  | ❌ Fail
+Repair by id                       | GET    | 2509ms | 1070ms | 1077ms | 1552ms | 2509ms  | ❌ Critical
+Create repair                      | POST   | 1137ms | 1029ms | 1010ms | 1059ms | 1137ms  | ❌ Fail
+Update repair status               | PATCH  | 1676ms | 1719ms | 1722ms | 1706ms | 1722ms  | ❌ Fail
+Customers list                     | GET    | 1149ms | 1142ms | 859ms  | 1050ms | 1149ms  | ❌ Fail
+Customer detail                    | GET    | 1089ms | 1019ms | 1000ms | 1036ms | 1089ms  | ❌ Fail
+Inventory list                     | GET    | 539ms  | 298ms  | 291ms  | 376ms  | 539ms   | ✅ Pass
+Inventory summary                  | GET    | 569ms  | 853ms  | 583ms  | 668ms  | 853ms   | ❌ Fail
+Staff list                         | GET    | 287ms  | 285ms  | 285ms  | 286ms  | 287ms   | ✅ Pass
+Dashboard analytics                | GET    | 29693ms | 287ms  | 298ms  | 10093ms | 29693ms | ❌ Critical
+Dashboard today repairs            | GET    | 573ms  | 570ms  | 568ms  | 570ms  | 573ms   | ✅ Pass
+Dashboard pending repairs          | GET    | 585ms  | 568ms  | 568ms  | 573ms  | 585ms   | ✅ Pass
+Invoices list                      | GET    | 3077ms | 1273ms | 1401ms | 1917ms | 3077ms  | ❌ Critical
+Reports repairs                    | GET    | 865ms  | 875ms  | 863ms  | 868ms  | 875ms   | ❌ Fail
+Reports customers                  | GET    | 857ms  | 570ms  | 571ms  | 666ms  | 857ms   | ❌ Fail
+Reports inventory                  | GET    | 2809ms | 1967ms | 1791ms | 2189ms | 2809ms  | ❌ Critical
+Notifications mark-read            | PATCH  | 1011ms | 1008ms | 1008ms | 1009ms | 1011ms  | ❌ Fail
+Notifications clear                | PATCH  | 1001ms | 1014ms | 1006ms | 1007ms | 1014ms  | ❌ Fail
+Staff me                           | GET    | 255ms  | 259ms  | 256ms  | 257ms  | 259ms   | ✅ Pass
+Staff roles                        | GET    | 258ms  | 293ms  | 270ms  | 274ms  | 293ms   | ✅ Pass
+Search                             | GET    | 2809ms | 806ms  | 780ms  | 1465ms | 2809ms  | ❌ Critical
