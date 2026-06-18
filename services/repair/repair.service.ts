@@ -140,7 +140,11 @@ export const updateTenantRepair = async (
           const addressParts = [oldRepair.shop?.address, oldRepair.shop?.city].filter(Boolean).join(", ");
           const shopContact = oldRepair.shop?.phone ? `\nContact: ${oldRepair.shop.phone}` : "";
           const shopFooter = `\n${shopName}${addressParts ? `\n${addressParts}` : ""}${shopContact}`;
-          const message = `Hi ${oldRepair.customer.name},\nYour repair task (${ref}) for ${deviceName}${issue} status has been updated to: ${statusText}.${shopFooter}`;
+          let message = `Hi ${oldRepair.customer.name},\nYour repair task (${ref}) for ${deviceName}${issue} status has been updated to: ${statusText}.${shopFooter}`;
+
+          if (['READY_TO_TAKE', 'COMPLETED', 'DELIVERED'].includes(updateData.status)) {
+            message = `Hi ${oldRepair.customer.name},\nYour repair task (${ref}) for ${deviceName}${issue} is done, you can collect your device.${shopFooter}`;
+          }
           
           await sendSms(oldRepair.customer.phone, message).catch((err) => {
             console.error("Failed to send SMS:", err);
