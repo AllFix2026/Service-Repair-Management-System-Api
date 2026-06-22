@@ -48,7 +48,7 @@ A comprehensive, scalable backend API for mobile repair shop management across S
 
 ---
 
-## 🎯 Overview ithu than
+## 🎯 Overview 
 
 **SRM Backend API** is a robust, multi-tenant SaaS backend designed specifically for mobile repair shops in Sri Lanka. It provides comprehensive repair management, customer tracking, photo documentation, and automated notifications through a RESTful API architecture.
 
