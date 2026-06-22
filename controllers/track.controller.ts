@@ -117,3 +117,77 @@ export const getPublicInvoiceByRef = async (req: Request, res: Response) => {
     });
   }
 };
+
+/**
+ * PUBLIC endpoint — no auth required.
+ * GET /v1/track/device/:id
+ * Returns device sale/collection receipt for a customer.
+ */
+export const getPublicDeviceById = async (req: Request, res: Response) => {
+  try {
+    const id = req.params.id as string;
+
+    if (!id) {
+      return res.status(400).json({ success: false, message: "Device ID is required." });
+    }
+
+    const device = await (prisma.device.findFirst as any)({
+      where: { id },
+      include: {
+        customer: { select: { name: true, phone: true, email: true } },
+        shop: {
+          select: {
+            name: true,
+            address: true,
+            city: true,
+            phone: true,
+            settings: { select: { appearance: true } },
+          },
+        },
+      },
+    });
+
+    if (!device) {
+      return res.status(404).json({
+        success: false,
+        message: "Device receipt not found.",
+      });
+    }
+
+    // Extract logo from appearance JSON
+    const appearance = device.shop?.settings?.appearance as Record<string, any> | null;
+    const logoUrl: string | null = appearance?.logoUrl ?? null;
+
+    const receipt = {
+      id:        device.id,
+      brand:     device.brand,
+      model:     device.model,
+      type:      device.type,
+      status:    device.status,
+      price:     device.price,
+      imei:      device.imei ? `****${String(device.imei).slice(-4)}` : null,
+      serialNo:  device.serialNo,
+      createdAt: device.createdAt,
+      updatedAt: device.updatedAt,
+
+      customer: {
+        name: device.customer?.name ?? "Customer",
+      },
+
+      shop: {
+        name:    device.shop?.name,
+        address: [device.shop?.address, device.shop?.city].filter(Boolean).join(", "),
+        phone:   device.shop?.phone,
+        logoUrl,
+      },
+    };
+
+    return res.status(200).json({ success: true, data: receipt });
+  } catch (error: any) {
+    console.error("[PUBLIC DEVICE TRACK] Error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Something went wrong. Please try again.",
+    });
+  }
+};

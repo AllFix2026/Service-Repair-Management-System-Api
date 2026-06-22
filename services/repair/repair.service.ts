@@ -142,9 +142,14 @@ export const updateTenantRepair = async (
           const shopFooter = `\n${shopName}${addressParts ? `\n${addressParts}` : ""}${shopContact}`;
           let message = `Hi ${oldRepair.customer.name},\nYour repair task (${ref}) for ${deviceName}${issue} status has been updated to: ${statusText}.${shopFooter}`;
 
-          if (['READY_TO_TAKE', 'COMPLETED', 'DELIVERED', 'PAID'].includes(updateData.status)) {
+          if (['READY_TO_TAKE', 'COMPLETED', 'DELIVERED'].includes(updateData.status)) {
             const invoiceUrl = `https://www.allfix.space/invoice/${ref}`;
             message = `Hi ${oldRepair.customer.name},\nYour repair task (${ref}) for ${deviceName}${issue} is done, you can collect your device.\n\nView Invoice: ${invoiceUrl}${shopFooter}`;
+          }
+
+          if (updateData.status === 'PAID') {
+            const invoiceUrl = `https://www.allfix.space/invoice/${ref}`;
+            message = `Hi ${oldRepair.customer.name},\nThank you for collecting your device and paying for our service! We truly appreciate your trust in ${shopName}.\n\nWe hope to see you again whenever you need us. 😊\n\nView Invoice: ${invoiceUrl}${shopFooter}`;
           }
           
           await sendSms(oldRepair.customer.phone, message).catch((err) => {

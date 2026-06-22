@@ -249,7 +249,11 @@ export const updateTenantDevice = async (id: string, tenantId: string, data: Dev
       let message = `Hi ${device.customer.name},\nYour device (${device.brand} ${device.model}) status has been updated to: ${statusText}.${shopFooter}`;
       
       if (data.status === 'SOLD') {
-        message = `Hi ${device.customer.name},\nYour device (${device.brand} ${device.model}) is sold, you can collect your cash.${shopFooter}`;
+        const invoiceUrl = `https://www.allfix.space/invoice/device/${device.id}`;
+        message = `Hi ${device.customer.name},\nYour device (${device.brand} ${device.model}) is sold, you can collect your cash.\n\nView Invoice: ${invoiceUrl}${shopFooter}`;
+      } else if (data.status === 'COLLECTED') {
+        const invoiceUrl = `https://www.allfix.space/invoice/device/${device.id}`;
+        message = `Hi ${device.customer.name},\nThank you for collecting your device (${device.brand} ${device.model}) and for your business.\n\nView Invoice: ${invoiceUrl}${shopFooter}`;
       }
       
       await sendSms(device.customer.phone, message).catch((err) => {
