@@ -246,7 +246,11 @@ export const updateTenantDevice = async (id: string, tenantId: string, data: Dev
       const addressParts = [shop?.address, shop?.city].filter(Boolean).join(", ");
       const shopContact = shop?.phone ? `\nContact: ${shop.phone}` : "";
       const shopFooter = `\n${shopName}${addressParts ? `\n${addressParts}` : ""}${shopContact}`;
-      const message = `Hi ${device.customer.name},\nYour device (${device.brand} ${device.model}) status has been updated to: ${statusText}.${shopFooter}`;
+      let message = `Hi ${device.customer.name},\nYour device (${device.brand} ${device.model}) status has been updated to: ${statusText}.${shopFooter}`;
+      
+      if (data.status === 'SOLD') {
+        message = `Hi ${device.customer.name},\nYour device (${device.brand} ${device.model}) is sold, you can collect your cash.${shopFooter}`;
+      }
       
       await sendSms(device.customer.phone, message).catch((err) => {
         console.error("Non-fatal: Failed to send SMS on device status update:", err);

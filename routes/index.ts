@@ -31,6 +31,7 @@ import smsRouter from "@/routes/sms.routes";
 import contactRouter from "@/routes/contact.routes";
 import searchRouter from "@/routes/search.routes";
 import serviceRequestsRouter from "@/routes/serviceRequests.routes";
+import trackRouter from "@/routes/track.routes";
 
 const router = Router();
 
@@ -60,6 +61,9 @@ router.use("/v1/staff", staffRouter);
 
 // Online Request Portal (ORP) - Has both public and protected endpoints internally
 router.use("/v1/service-requests", serviceRequestsRouter);
+
+// Public invoice tracking (no auth required)
+router.use("/v1/track", trackRouter);
 
 // ─── Protected Routes ───────────────────────────────────────────────────────
 // authenticate   → verifies JWT, attaches req.user
