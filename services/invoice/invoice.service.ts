@@ -22,7 +22,10 @@ export const getInvoices = async (tenantId: string) => {
       orderBy: { paymentDate: "desc" },
     }),
     prisma.device.findMany({
-      where: { tenantId },
+      where: { 
+        tenantId,
+        status: { in: ["SOLD", "ON_SALE"] }
+      },
       include: {
         customer: { select: { name: true, phone: true } },
       },

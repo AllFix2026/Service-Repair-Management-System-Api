@@ -120,6 +120,42 @@ export const getDashboardAnalytics = async (auth: DashboardAuthContext, days: nu
 
   const totalRevenue = completedPayments.reduce((sum, p) => sum + Number(p.amount || 0), 0);
 
+  // Calculate total parts cost using raw SQL (works regardless of Prisma client generation state)
+  let totalPartsCost = 0;
+  try {
+    // Direct SQL join: RepairPartsUsed → PartsInventory → unitCost (stock value)
+    // Only count parts from PAID or DELIVERED repairs
+    let rawResult: any[];
+    if (shopId) {
+      rawResult = await prisma.$queryRawUnsafe(`
+        SELECT COALESCE(SUM(rpu."quantityUsed" * COALESCE(pi."unitCost", rpu."unitPrice" * 0.8)), 0) AS "partsCost"
+        FROM "RepairPartsUsed" rpu
+        JOIN "Repair" r ON r.id = rpu."repairId"
+        LEFT JOIN "PartsInventory" pi ON pi.id = rpu."partId"
+        WHERE r."tenantId" = $1
+          AND r."shopId" = $2
+          AND r.status IN ('PAID', 'DELIVERED')
+      `, tenantId, shopId);
+    } else {
+      rawResult = await prisma.$queryRawUnsafe(`
+        SELECT COALESCE(SUM(rpu."quantityUsed" * COALESCE(pi."unitCost", rpu."unitPrice" * 0.8)), 0) AS "partsCost"
+        FROM "RepairPartsUsed" rpu
+        JOIN "Repair" r ON r.id = rpu."repairId"
+        LEFT JOIN "PartsInventory" pi ON pi.id = rpu."partId"
+        WHERE r."tenantId" = $1
+          AND r.status IN ('PAID', 'DELIVERED')
+      `, tenantId);
+    }
+
+    totalPartsCost = Number(rawResult?.[0]?.partsCost ?? 0);
+    logger.info(`[getDashboardAnalytics] -> Parts cost (raw SQL): ${totalPartsCost}`);
+  } catch (err: any) {
+    logger.error(`[getDashboardAnalytics] -> Raw SQL parts cost failed: ${err.message}`);
+    // Fallback: totalPartsCost stays 0 (net profit = revenue)
+  }
+
+  const netProfit = Math.max(0, totalRevenue - totalPartsCost);
+
   // Calculate percentage changes (mocked logic for now)
   const revenueChange = "+15%";
   const repairChange = "+8%";
@@ -439,7 +475,9 @@ export const getDashboardAnalytics = async (auth: DashboardAuthContext, days: nu
       totalRepairs,
       repairChange,
       pendingRepairs: pendingRepairsCount,
-      activeTechnicians: activeTechniciansCount
+      activeTechnicians: activeTechniciansCount,
+      netProfit,
+      totalPartsCost
     },
     revenueData,
     statusData,
@@ -458,7 +496,7 @@ export const getDashboardAnalytics = async (auth: DashboardAuthContext, days: nu
   };
 
   try {
-    await setCachedData(cacheKey, result, 300); // Cache for 5 mins
+    await setCachedData(cacheKey, result, 60); // Cache for 1 min
     logger.info(`[getDashboardAnalytics] -> Cached analytics result for key: ${cacheKey}`);
   } catch (err: any) {
     logger.warn(`[getDashboardAnalytics] -> Cache write failed: ${err.message}`);
