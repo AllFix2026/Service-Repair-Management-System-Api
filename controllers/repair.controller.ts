@@ -49,7 +49,7 @@ export const getRepairById = async (req: AuthRequest, res: Response) => {
 
 export const createRepair = async (req: AuthRequest, res: Response) => {
   try {
-    const { shopId, customerId, deviceId, issue, internalNotes, priority, estimatedCompletionDate, estimatedCost, technicianId, photoUrls } = req.body;
+    const { shopId, customerId, deviceId, issue, internalNotes, priority, estimatedCompletionDate, estimatedCost, technicianId, photoUrls, partsUsed } = req.body;
     if (!shopId || !customerId || !deviceId)
       return res.status(400).json({ success: false, message: "shopId, customerId and deviceId are required" });
     const repair = await createTenantRepair(req.user!.tenantId, {
@@ -63,6 +63,8 @@ export const createRepair = async (req: AuthRequest, res: Response) => {
       estimatedCost,
       technicianId,
       photoUrls,
+      userId: req.user!.id,
+      partsUsed,
     });
     
     // Invalidate dashboard analytics cache
@@ -77,9 +79,9 @@ export const createRepair = async (req: AuthRequest, res: Response) => {
 export const updateRepair = async (req: AuthRequest, res: Response) => {
   try {
     const id = req.params.id as string;
-    const { status, issue, diagnosis, estimatedCost, finalCost, technicianId, autoUpdateCustomer } = req.body;
+    const { status, issue, diagnosis, estimatedCost, finalCost, technicianId, autoUpdateCustomer, partsUsed } = req.body;
     
-    const updateData: Record<string, any> = {};
+    const updateData: Record<string, any> = { userId: req.user!.id };
     if (status !== undefined) updateData.status = status;
     if (issue !== undefined) updateData.issue = issue;
     if (diagnosis !== undefined) updateData.diagnosis = diagnosis;
@@ -88,6 +90,7 @@ export const updateRepair = async (req: AuthRequest, res: Response) => {
     if (technicianId !== undefined) updateData.technicianId = technicianId;
     // Pass autoUpdateCustomer so the service can send SMS if requested
     if (autoUpdateCustomer !== undefined) updateData.autoUpdateCustomer = autoUpdateCustomer;
+    if (partsUsed !== undefined) updateData.partsUsed = partsUsed;
 
     const repair = await updateTenantRepair(id, req.user!.tenantId, updateData);
     

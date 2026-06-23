@@ -55,12 +55,14 @@ export const createTenantRepair = async (
     technicianId?: string;
     status?: any;
     photoUrls?: string[];
+    userId: string;
+    partsUsed?: { partId: string; quantity: number; unitPrice: number; }[];
   }
 ) => {
   const reference = `REP-${Date.now().toString().slice(-6)}${Math.floor(Math.random() * 1000)}`;
   
-  // Extract photoUrls before saving (not a DB column on Repair)
-  const { photoUrls, ...repairData } = data;
+  // Extract non-DB fields before saving
+  const { photoUrls, partsUsed, userId, ...repairData } = data;
 
   const repair = await prisma.repair.create({
     data: { 
@@ -80,6 +82,34 @@ export const createTenantRepair = async (
         stage: 'INTAKE',
       }))
     });
+  }
+
+  // Save Parts Used
+  if (data.partsUsed && data.partsUsed.length > 0) {
+    await prisma.repairPartsUsed.createMany({
+      data: data.partsUsed.map(part => ({
+        repairId: repair.id,
+        partId: part.partId,
+        quantityUsed: part.quantity,
+        unitPrice: part.unitPrice,
+        totalPrice: part.unitPrice * part.quantity,
+        addedByUserId: data.userId,
+      }))
+    });
+
+    // Deduct inventory quantities
+    for (const part of data.partsUsed) {
+      try {
+        await prisma.partsInventory.update({
+          where: { id: part.partId },
+          data: {
+            quantityInStock: { decrement: part.quantity }
+          }
+        });
+      } catch (err: any) {
+        console.error(`Failed to deduct inventory for part ${part.partId}:`, err);
+      }
+    }
   }
 
   await logTimelineEvent(repair.id, 'CREATED', `Repair created with status ${data.status || 'NOT_STARTED'}`);
@@ -118,13 +148,59 @@ export const updateTenantRepair = async (
       include: { customer: true, device: true, shop: { select: { name: true, address: true, city: true, phone: true } } } 
     });
     
-    // Extract autoUpdateCustomer from data so it doesn't try to update it in the DB
-    const { autoUpdateCustomer, ...updateData } = data;
+    // Extract non-db fields from data so it doesn't try to update them in the DB
+    const { autoUpdateCustomer, userId, partsUsed, ...updateData } = data;
 
     const repair = await prisma.repair.update({
       where: { id },
       data: updateData,
     });
+
+    if (partsUsed !== undefined) {
+      // Fetch existing parts to restore inventory
+      const existingParts = await prisma.repairPartsUsed.findMany({
+        where: { repairId: id }
+      });
+      
+      // Restore inventory
+      for (const ep of existingParts) {
+        try {
+          await prisma.partsInventory.update({
+            where: { id: ep.partId },
+            data: { quantityInStock: { increment: ep.quantityUsed } }
+          });
+        } catch (err) { console.error("Restore inventory error:", err); }
+      }
+
+      // Delete existing
+      await prisma.repairPartsUsed.deleteMany({
+        where: { repairId: id }
+      });
+
+      // Add new parts
+      if (partsUsed.length > 0) {
+        await prisma.repairPartsUsed.createMany({
+          data: partsUsed.map((part: any) => ({
+            repairId: id,
+            partId: part.partId,
+            quantityUsed: part.quantity,
+            unitPrice: part.unitPrice,
+            totalPrice: part.unitPrice * part.quantity,
+            addedByUserId: userId,
+          }))
+        });
+
+        // Deduct inventory
+        for (const part of partsUsed) {
+          try {
+            await prisma.partsInventory.update({
+              where: { id: part.partId },
+              data: { quantityInStock: { decrement: part.quantity } }
+            });
+          } catch (err) { console.error("Deduct inventory error:", err); }
+        }
+      }
+    }
 
     try {
       if (updateData.status) {
