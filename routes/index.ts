@@ -54,6 +54,10 @@ router.post("/v1/shops/generate-ids", generateShopIds);
 router.post("/v1/shops/register", registerShop);
 router.post("/v1/shops/send-verification", sendShopVerification);
 
+// Public Demo Booking Routes
+import bookingRouter from "@/routes/booking.routes";
+router.use("/v1/bookings", bookingRouter);
+
 // Public Payment & Subscription webhooks (must be before authenticate)
 router.use("/v1/payment", paymentRouter);
 router.use("/v1/subscription", subscriptionRouter);
