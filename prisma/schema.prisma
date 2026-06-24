@@ -835,4 +835,16 @@ model DeliveryJob {
   
   createdAt       DateTime @default(now())
 }
-
+
+model DemoBooking {
+  id        String   @id @default(cuid())
+  name      String
+  email     String
+  phone     String?
+  date      DateTime
+  time      String
+  notes     String?
+  status    String   @default("PENDING") // PENDING, SCHEDULED, COMPLETED, CANCELLED
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
