@@ -847,4 +847,38 @@ model DemoBooking {
   status    String   @default("PENDING") // PENDING, SCHEDULED, COMPLETED, CANCELLED
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-}
+}
+
+// ─── Activity Logs ───────────────────────────────────────────────────────────
+
+model ActivityLog {
+  id          String   @id @default(cuid())
+  tenantId    String
+  shopId      String
+
+  // Who did it
+  userId      String
+  userName    String   // Stored at write time (denormalized for speed)
+  userRole    String
+
+  // What they did
+  action      String   // e.g. "CREATE_REPAIR", "UPDATE_PAYMENT", "DELETE_CUSTOMER"
+  entity      String   // e.g. "Repair", "Payment", "Customer"
+  entityId    String?  // ID of the affected record
+
+  // Details (JSON blob for flexible data)
+  details     Json?    // e.g. { repairRef: "REP-001", amount: 5000, status: "PAID" }
+
+  // Financial fields (denormalized for quick log queries)
+  amount      Float?   // Any monetary value involved in the action
+  amountLabel String?  // e.g. "Labour Cost", "Part Purchase", "Payment Received"
+
+  createdAt   DateTime @default(now())
+
+  @@index([shopId])
+  @@index([userId])
+  @@index([shopId, createdAt])
+  @@index([shopId, action])
+  @@index([tenantId, shopId, createdAt])
+}
+
