@@ -135,7 +135,8 @@ export const getDashboardAnalytics = async (auth: DashboardAuthContext, days: nu
         WHERE r."tenantId" = $1
           AND r."shopId" = $2
           AND r.status IN ('PAID', 'DELIVERED')
-      `, tenantId, shopId);
+          AND r."createdAt" >= $3
+      `, tenantId, shopId, rangeDate);
     } else {
       rawResult = await prisma.$queryRawUnsafe(`
         SELECT COALESCE(SUM(rpu."quantityUsed" * COALESCE(pi."unitCost", rpu."unitPrice" * 0.8)), 0) AS "partsCost"
@@ -144,7 +145,8 @@ export const getDashboardAnalytics = async (auth: DashboardAuthContext, days: nu
         LEFT JOIN "PartsInventory" pi ON pi.id = rpu."partId"
         WHERE r."tenantId" = $1
           AND r.status IN ('PAID', 'DELIVERED')
-      `, tenantId);
+          AND r."createdAt" >= $2
+      `, tenantId, rangeDate);
     }
 
     totalPartsCost = Number(rawResult?.[0]?.partsCost ?? 0);

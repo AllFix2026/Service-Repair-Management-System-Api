@@ -32,6 +32,8 @@ import contactRouter from "@/routes/contact.routes";
 import searchRouter from "@/routes/search.routes";
 import serviceRequestsRouter from "@/routes/serviceRequests.routes";
 import trackRouter from "@/routes/track.routes";
+import activityLogRouter from "@/routes/activityLog.routes";
+import { activityLogMiddleware } from "@/middlewares/activityLog.middleware";
 
 const router = Router();
 
@@ -76,6 +78,7 @@ router.use("/v1/track", trackRouter);
 router.use(authenticate);
 router.use(shopRateLimiter);
 router.use(tenantMiddleware);
+router.use(activityLogMiddleware); // Auto-log all mutating actions
 
 router.use("/v1/users", usersRouter);
 router.use("/v1/shops", shopsRouter);
@@ -92,5 +95,6 @@ router.use("/v1/uploads", uploadsRouter);
 router.use("/v1/tasks", taskRouter);
 router.use("/v1/sms", smsRouter);
 router.use("/v1/search", searchRouter);
+router.use("/v1/logs", activityLogRouter);
 
 export default router;
