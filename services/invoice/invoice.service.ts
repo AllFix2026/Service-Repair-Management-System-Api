@@ -18,6 +18,7 @@ export const getInvoices = async (tenantId: string) => {
           },
         },
         customer: { select: { name: true, phone: true } },
+        shop: { select: { name: true, logoUrl: true } },
       },
       orderBy: { paymentDate: "desc" },
     }),
@@ -25,6 +26,7 @@ export const getInvoices = async (tenantId: string) => {
       where: { tenantId },
       include: {
         customer: { select: { name: true, phone: true } },
+        shop: { select: { name: true, logoUrl: true } },
       },
       orderBy: { createdAt: "desc" },
     }),
@@ -54,6 +56,8 @@ export const getInvoices = async (tenantId: string) => {
     notes: p.notes ?? "",
     transactionReference: p.transactionReference ?? "",
     source: "payment" as const,
+    shopName: p.shop?.name ?? null,
+    shopLogoUrl: p.shop?.logoUrl ?? null,
   }));
 
   const deviceInvoices = devices.map((d) => ({
@@ -76,6 +80,8 @@ export const getInvoices = async (tenantId: string) => {
     notes: d.imei ? `IMEI: ${d.imei}` : d.serialNo ? `S/N: ${d.serialNo}` : "",
     transactionReference: d.imei ?? d.serialNo ?? "",
     source: "device" as const,
+    shopName: d.shop?.name ?? null,
+    shopLogoUrl: d.shop?.logoUrl ?? null,
   }));
 
   return [...paymentInvoices, ...deviceInvoices].sort(
