@@ -118,13 +118,27 @@ export const getDashboardAnalytics = async (auth: DashboardAuthContext, days: nu
     select: { createdAt: true }
   });
 
-  const totalRevenue = completedPayments.reduce((sum, p) => sum + Number(p.amount || 0), 0);
+  const totalRevenueFromPayments = completedPayments.reduce((sum, p) => sum + Number(p.amount || 0), 0);
+
+  // Get sum of advance payments for all active/non-completed repairs to reflect actual cash flow
+  const activeRepairsAdvance = await prisma.repair.aggregate({
+    where: {
+      ...baseWhere,
+      status: { notIn: ["PAID", "DELIVERED"] },
+      createdAt: { gte: rangeDate }
+    },
+    _sum: {
+      advancePayment: true
+    }
+  });
+
+  const totalRevenue = totalRevenueFromPayments + Number(activeRepairsAdvance._sum.advancePayment || 0);
 
   // Calculate total parts cost using raw SQL (works regardless of Prisma client generation state)
   let totalPartsCost = 0;
   try {
     // Direct SQL join: RepairPartsUsed → PartsInventory → unitCost (stock value)
-    // Only count parts from PAID or DELIVERED repairs
+    // Count parts from IN_PROGRESS, READY_TO_TAKE, PAID, or DELIVERED repairs
     let rawResult: any[];
     if (shopId) {
       rawResult = await prisma.$queryRawUnsafe(`
@@ -134,7 +148,7 @@ export const getDashboardAnalytics = async (auth: DashboardAuthContext, days: nu
         LEFT JOIN "PartsInventory" pi ON pi.id = rpu."partId"
         WHERE r."tenantId" = $1
           AND r."shopId" = $2
-          AND r.status IN ('PAID', 'DELIVERED')
+          AND r.status IN ('IN_PROGRESS', 'READY_TO_TAKE', 'PAID', 'DELIVERED')
           AND r."createdAt" >= $3
       `, tenantId, shopId, rangeDate);
     } else {
@@ -144,7 +158,7 @@ export const getDashboardAnalytics = async (auth: DashboardAuthContext, days: nu
         JOIN "Repair" r ON r.id = rpu."repairId"
         LEFT JOIN "PartsInventory" pi ON pi.id = rpu."partId"
         WHERE r."tenantId" = $1
-          AND r.status IN ('PAID', 'DELIVERED')
+          AND r.status IN ('IN_PROGRESS', 'READY_TO_TAKE', 'PAID', 'DELIVERED')
           AND r."createdAt" >= $2
       `, tenantId, rangeDate);
     }
@@ -234,10 +248,15 @@ export const getDashboardAnalytics = async (auth: DashboardAuthContext, days: nu
   const countMap = Object.fromEntries(statusCounts.map(s => [s.status, s._count.status]));
 
   const statusData = allStatuses.map(status => {
-    let color = '#F59E0B'; // Default (NOT_STARTED)
-    if (status === 'DELIVERED' || status === 'PAID') color = '#10B981';
-    if (status === 'IN_PROGRESS') color = '#4F46E5';
-    if (status === 'READY_TO_TAKE') color = '#10B981'; // Green for ready
+    // Fully distinct color per status — no two statuses share a color
+    const colorMap: Record<string, string> = {
+      'NOT_STARTED':  '#F59E0B', // Amber   — Pending / waiting
+      'IN_PROGRESS':  '#6366F1', // Indigo  — actively being worked on
+      'READY_TO_TAKE':'#3B82F6', // Blue    — ready for pickup
+      'DELIVERED':    '#8B5CF6', // Violet  — handed over to customer
+      'PAID':         '#10B981', // Emerald — fully closed & paid
+    };
+    const color = colorMap[status] ?? '#94A3B8';
 
     return {
       name: status.replace('_', ' '),

@@ -12,7 +12,12 @@ export const getTenantRepairs = async (
 
   return prisma.repair.findMany({
     where: { tenantId },
-    include: { customer: true, device: true, technician: { select: { id: true, email: true, fullName: true, role: true } } },
+    include: { 
+      customer: true, 
+      device: true, 
+      technician: { select: { id: true, email: true, fullName: true, role: true } },
+      repairPartsUsed: { include: { part: true } }
+    },
     orderBy: { createdAt: 'desc' },
     ...(hasPagination ? { skip, take } : {}),
   });
@@ -57,6 +62,7 @@ export const createTenantRepair = async (
     photoUrls?: string[];
     userId: string;
     partsUsed?: { partId: string; quantity: number; unitPrice: number; }[];
+    advancePayment?: number;
   }
 ) => {
   const reference = `REP-${Date.now().toString().slice(-6)}${Math.floor(Math.random() * 1000)}`;
@@ -286,6 +292,62 @@ export const addRepairNote = async (repairId: string, userId: string, text: stri
   });
 
   await logTimelineEvent(repairId, 'NOTE_ADDED', 'New technician note added', userId);
+
+  // Handle Mentions and trigger notifications
+  try {
+    const repair = await prisma.repair.findUnique({
+      where: { id: repairId },
+      select: { reference: true, tenantId: true, shopId: true }
+    });
+
+    if (repair) {
+      // Regex to match words starting with @ (e.g., @Saiethya Suresh) up to next @ or space
+      const mentionRegex = /@([^@\n\r\t]+?)(?=\s|@|$)/g;
+      let match;
+      const mentionedNames: string[] = [];
+      while ((match = mentionRegex.exec(text)) !== null) {
+        if (match[1] && match[1].trim()) {
+          mentionedNames.push(match[1].trim());
+        }
+      }
+
+      if (mentionedNames.length > 0) {
+        // Find users with these names in the tenant
+        const matchingUsers = await prisma.user.findMany({
+          where: {
+            tenantId: repair.tenantId,
+            fullName: { in: mentionedNames, mode: 'insensitive' }
+          },
+          select: { id: true, fullName: true }
+        });
+
+        // Create notification for each mentioned user
+        const authorName = note.user?.fullName || "A team member";
+        for (const user of matchingUsers) {
+          // Prevent notifying oneself
+          if (user.id === userId) continue;
+
+          await prisma.notification.create({
+            data: {
+              tenantId: repair.tenantId,
+              shopId: repair.shopId,
+              repairId: repairId,
+              to: user.id,
+              channel: "IN_APP",
+              title: "You were mentioned in a note",
+              message: `${authorName} mentioned you in repair task #${repair.reference}`,
+              type: "REPAIR",
+              status: "PENDING",
+              isRead: false,
+              isCleared: false
+            }
+          });
+        }
+      }
+    }
+  } catch (error) {
+    console.error("Non-fatal: Failed to send mention notifications:", error);
+  }
 
   return note;
 };

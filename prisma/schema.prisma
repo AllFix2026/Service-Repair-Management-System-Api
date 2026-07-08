@@ -282,6 +282,7 @@ model Repair {
   diagnosis               String?
   estimatedCost           Int?
   finalCost               Int?
+  advancePayment          Int?         @default(0)
   technicianId            String?
   priority                Priority     @default(MEDIUM)
   estimatedCompletionDate DateTime?
