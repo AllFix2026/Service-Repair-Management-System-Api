@@ -36,6 +36,17 @@ export const rejectRegistration = async (req: Request, res: Response) => {
   }
 };
 
+export const cancelRegistration = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    await registrationService.cancelRegistrationRequest(id as string);
+    return res.status(200).json({ success: true, message: "Registration cancelled successfully" });
+  } catch (error: any) {
+    logger.error(`[OnboardingController] Error cancelling: ${error.message}`);
+    return res.status(error.status || 500).json({ message: error.message || "Internal server error" });
+  }
+};
+
 export const getStatus = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
