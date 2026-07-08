@@ -49,7 +49,7 @@ export const getRepairById = async (req: AuthRequest, res: Response) => {
 
 export const createRepair = async (req: AuthRequest, res: Response) => {
   try {
-    const { shopId, customerId, deviceId, issue, internalNotes, priority, estimatedCompletionDate, estimatedCost, technicianId, photoUrls, partsUsed } = req.body;
+    const { shopId, customerId, deviceId, issue, internalNotes, priority, estimatedCompletionDate, estimatedCost, technicianId, photoUrls, partsUsed, advancePayment } = req.body;
     if (!shopId || !customerId || !deviceId)
       return res.status(400).json({ success: false, message: "shopId, customerId and deviceId are required" });
     const repair = await createTenantRepair(req.user!.tenantId, {
@@ -65,6 +65,7 @@ export const createRepair = async (req: AuthRequest, res: Response) => {
       photoUrls,
       userId: req.user!.id,
       partsUsed,
+      advancePayment: advancePayment !== undefined ? Number(advancePayment) : undefined,
     });
     
     // Invalidate dashboard analytics cache
@@ -79,7 +80,7 @@ export const createRepair = async (req: AuthRequest, res: Response) => {
 export const updateRepair = async (req: AuthRequest, res: Response) => {
   try {
     const id = req.params.id as string;
-    const { status, issue, diagnosis, estimatedCost, finalCost, technicianId, autoUpdateCustomer, partsUsed } = req.body;
+    const { status, issue, diagnosis, estimatedCost, finalCost, technicianId, autoUpdateCustomer, partsUsed, advancePayment } = req.body;
     
     const updateData: Record<string, any> = { userId: req.user!.id };
     if (status !== undefined) updateData.status = status;
@@ -88,6 +89,7 @@ export const updateRepair = async (req: AuthRequest, res: Response) => {
     if (estimatedCost !== undefined) updateData.estimatedCost = estimatedCost;
     if (finalCost !== undefined) updateData.finalCost = finalCost;
     if (technicianId !== undefined) updateData.technicianId = technicianId;
+    if (advancePayment !== undefined) updateData.advancePayment = Number(advancePayment);
     // Pass autoUpdateCustomer so the service can send SMS if requested
     if (autoUpdateCustomer !== undefined) updateData.autoUpdateCustomer = autoUpdateCustomer;
     if (partsUsed !== undefined) updateData.partsUsed = partsUsed;
