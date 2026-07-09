@@ -16,7 +16,8 @@ export const getTenantRepairs = async (
       customer: true, 
       device: true, 
       technician: { select: { id: true, email: true, fullName: true, role: true } },
-      repairPartsUsed: { include: { part: true } }
+      repairPartsUsed: { include: { part: true } },
+      photos: { orderBy: { createdAt: 'asc' } }
     },
     orderBy: { createdAt: 'desc' },
     ...(hasPagination ? { skip, take } : {}),
