@@ -253,6 +253,9 @@ model Device {
   imei       String?
   serialNo   String?
   price      Int?
+  costPrice  Int?
+  soldPrice  Int?
+  photoUrl   String?
   status     DeviceStatus @default(ACTIVE)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt

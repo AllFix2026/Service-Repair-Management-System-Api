@@ -15,6 +15,7 @@ export const getInvoices = async (tenantId: string) => {
             customer: { select: { name: true, phone: true } },
             device: { select: { brand: true, model: true } },
             technician: { select: { fullName: true } },
+            repairPartsUsed: true,
           },
         },
         customer: { select: { name: true, phone: true } },
@@ -24,7 +25,7 @@ export const getInvoices = async (tenantId: string) => {
     prisma.device.findMany({
       where: { 
         tenantId,
-        status: { in: ["SOLD", "ON_SALE"] }
+        status: { in: ["SOLD", "ON_SALE", "COLLECTED"] }
       },
       include: {
         customer: { select: { name: true, phone: true } },
@@ -57,20 +58,27 @@ export const getInvoices = async (tenantId: string) => {
     notes: p.notes ?? "",
     transactionReference: p.transactionReference ?? "",
     source: "payment" as const,
+    advancePayment: p.repair?.advancePayment ?? 0,
+    partsCost: p.repair 
+      ? (p.repair.repairPartsUsed || []).reduce((sum, part) => sum + (part.totalPrice || (part.unitPrice * part.quantityUsed) || 0), 0) 
+      : 0,
+    laborCost: p.repair 
+      ? Math.max(0, (p.repair.finalCost || p.repair.estimatedCost || Number(p.amount)) - ((p.repair.repairPartsUsed || []).reduce((sum, part) => sum + (part.totalPrice || (part.unitPrice * part.quantityUsed) || 0), 0)))
+      : Number(p.amount) * 0.4,
   }));
 
-  const deviceInvoices = devices.map((d) => ({
-    id: `dev-${d.id}`,
-    invoiceId: `#DEV-${d.id.substring(0, 8).toUpperCase()}`,
+  const deviceInvoices = devices.map((d) => {
+    const device = d as any;
+    return {
+    id: `dev-${device.id}`,
+    invoiceId: `#DEV-${device.id.substring(0, 8).toUpperCase()}`,
     type: "inventory_item" as const,
-    name: d.customer?.name ?? "Walk-In",
-    phone: d.customer?.phone ?? "—",
-    amount: d.price ? Number(d.price) : 0,
+    name: device.customer?.name ?? "Walk-In",
+    phone: device.customer?.phone ?? "—",
+    amount: (device.soldPrice !== null && device.soldPrice !== undefined) ? Number(device.soldPrice) : (device.price ? Number(device.price) : 0),
     status:
-      d.status === "SOLD"
+      (d.status === "SOLD" || d.status === "COLLECTED")
         ? "Paid"
-        : d.status === "ON_SALE"
-        ? "Pending"
         : "Pending",
     date: d.createdAt.toISOString(),
     staff: "Admin",
@@ -79,7 +87,8 @@ export const getInvoices = async (tenantId: string) => {
     notes: d.imei ? `IMEI: ${d.imei}` : d.serialNo ? `S/N: ${d.serialNo}` : "",
     transactionReference: d.imei ?? d.serialNo ?? "",
     source: "device" as const,
-  }));
+    };
+  });
 
   return [...paymentInvoices, ...deviceInvoices].sort(
     (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
