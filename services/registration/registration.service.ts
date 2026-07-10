@@ -107,6 +107,7 @@ export const finalizeRegistration = async (requestId: string, paymentIntentId: s
         where: { id: data.shop_id },
         update: {
           name: data.shop_name,
+          businessRegistration: data.businessRegistration,
           brn: data.brn,
           address: data.address,
           city: data.city,
@@ -117,6 +118,7 @@ export const finalizeRegistration = async (requestId: string, paymentIntentId: s
           tenantId: data.tenant_id, 
           shopCode,
           name: data.shop_name, 
+          businessRegistration: data.businessRegistration,
           brn: data.brn,
           address: data.address,
           city: data.city,
@@ -171,20 +173,63 @@ export const finalizeRegistration = async (requestId: string, paymentIntentId: s
   }
 };
 
+const formatRegistrationResponse = (request: any) => {
+  const data = request.fullData || {};
+  
+  const sanitizedOwner = data.owner ? {
+    name: data.owner.name ?? null,
+    email: data.owner.email ?? null,
+  } : null;
+
+  const formattedData = {
+    ...data,
+    shop_id: data.shop_id ?? null,
+    tenant_id: data.tenant_id ?? null,
+    shop_name: data.shop_name ?? null,
+    businessRegistration: data.businessRegistration ?? null,
+    brn: data.brn ?? null,
+    address: data.address ?? null,
+    city: data.city ?? null,
+    country: data.country ?? null,
+    phone: data.phone ?? null,
+    branches: data.branches ?? null,
+    repairTypes: data.repairTypes ?? null,
+    plan: data.plan ?? null,
+    owner: sanitizedOwner
+  };
+
+  if (formattedData.owner && 'password' in formattedData.owner) {
+    delete formattedData.owner.password;
+  }
+  
+  if (data.owner && 'password' in data.owner) {
+    delete data.owner.password;
+  }
+
+  return {
+    ...request,
+    fullData: formattedData,
+    contactNumber: data.phone ?? null,
+    name: request.ownerName ?? null,
+    email: request.ownerEmail ?? null,
+  };
+};
+
 export const getRegistrationRequestStatus = async (id: string) => {
   const request = await prisma.registrationRequest.findUnique({
     where: { id },
     select: { id: true, status: true, shopName: true, ownerEmail: true, ownerName: true, createdAt: true, fullData: true }
   });
   if (!request) throw { status: 404, message: "Request not found" };
-  return request;
+  return formatRegistrationResponse(request);
 };
 
 export const getAllRegistrationRequests = async (status?: string) => {
-  return await prisma.registrationRequest.findMany({
+  const requests = await prisma.registrationRequest.findMany({
     where: status ? { status: status as any } : {},
     orderBy: { createdAt: "desc" }
   });
+  return requests.map(formatRegistrationResponse);
 };
 
 export const rejectRegistrationRequest = async (token: string) => {
