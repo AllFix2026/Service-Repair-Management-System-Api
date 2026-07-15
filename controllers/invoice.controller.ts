@@ -7,6 +7,7 @@ import {
   updateInvoiceStatus,
   deleteInvoice,
   getInvoiceSummary,
+  mapStatusToDatabase,
 } from "@/services/invoice/invoice.service";
 import { invalidateDashboardCache } from "@/services/dashboard/dashboard.service";
 
@@ -45,18 +46,8 @@ export const addInvoice = async (req: Request, res: Response) => {
       return res.status(400).json({ success: false, message: "amount is required" });
     }
 
-    // Map user-friendly status names to database values
-    // "Paid" -> "COMPLETED", "Overdue" -> "OVERDUE", otherwise use as-is or default to "PENDING"
-    let dbStatus = "PENDING";
-    if (status) {
-      const statusUpper = status.toUpperCase();
-      if (statusUpper === "PAID") dbStatus = "COMPLETED";
-      else if (statusUpper === "OVERDUE") dbStatus = "OVERDUE";
-      else if (statusUpper === "COMPLETED") dbStatus = "COMPLETED";
-      else if (statusUpper === "FAILED") dbStatus = "FAILED";
-      else if (statusUpper === "PENDING") dbStatus = "PENDING";
-      else dbStatus = status; // Pass through for validation by service
-    }
+    // Map user-friendly status names to database values or default to PENDING
+    const dbStatus = mapStatusToDatabase(status) ?? "PENDING";
 
     logger.info(
       `[addInvoice] -> Creating invoice for tenant: ${auth.tenantId}, status: ${dbStatus}`
@@ -83,7 +74,7 @@ export const addInvoice = async (req: Request, res: Response) => {
     logger.error(
       `[addInvoice] -> Error: ${error.message}, Stack: ${error.stack}, Status: ${error.status}`
     );
-    return res.status(error.status ?? 500).json({ success: false, message: "Unable to create invoice" });
+    return res.status(error.status ?? 500).json({ success: false, message: error.message || "Unable to create invoice" });
   }
 };
 

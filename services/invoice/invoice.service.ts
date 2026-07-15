@@ -5,7 +5,7 @@ import { logger } from "@/config/logger.config";
 const VALID_PAYMENT_STATUSES = ["PENDING", "OVERDUE", "COMPLETED", "FAILED"] as const;
 
 // Map user-friendly status names to database enum values
-const mapStatusToDatabase = (status: string | undefined): string | undefined => {
+export const mapStatusToDatabase = (status: string | undefined): string | undefined => {
   if (!status) return undefined;
   
   const statusUpper = status.toUpperCase();
