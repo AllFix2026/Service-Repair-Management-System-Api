@@ -108,7 +108,8 @@ export const generateInvoice = async (repairId: string, tenantId: string) => {
   });
 
   if (!repair) throw { status: 404, message: "Repair not found" };
-  if (repair.status !== "COMPLETED" && repair.status !== "PAID") {
+  const repairStatus = repair.status as string;
+  if (repairStatus !== "PAID" && repairStatus !== "DELIVERED" && repairStatus !== "READY_TO_TAKE") {
     throw { status: 400, message: "Repair job is not completed yet" };
   }
 
