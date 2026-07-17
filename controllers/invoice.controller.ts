@@ -3,10 +3,11 @@ import type { AuthRequest } from "@/types/auth.types";
 import { logger } from "@/config/logger.config";
 import {
   getInvoices,
+  getInvoiceSummary,
+  generateInvoice,
   createInvoice,
   updateInvoiceStatus,
   deleteInvoice,
-  getInvoiceSummary,
 } from "@/services/invoice/invoice.service";
 import { invalidateDashboardCache } from "@/services/dashboard/dashboard.service";
 
@@ -34,6 +35,37 @@ export const invoiceSummary = async (req: Request, res: Response) => {
   }
 };
 
+// POST /api/v1/invoices/generate
+// Auto-generates an invoice for a completed repair job.
+export const generateInvoiceFromRepair = async (req: AuthRequest, res: Response) => {
+  try {
+    const invoice = await generateInvoice(req.body.repairId, req.user!.tenantId);
+
+    return res.status(201).json({
+      success: true,
+      message: "Invoice generated successfully",
+      invoiceId: invoice.invoiceNumber,
+      subtotal: Number(invoice.subtotal),
+      taxAmount: Number(invoice.taxAmount),
+      total: Number(invoice.total),
+    });
+  } catch (error: any) {
+    logger.error(`[generateInvoiceFromRepair] -> ${error.message}`);
+
+    if (error?.status === 404) {
+      return res.status(404).json({ success: false, message: "Repair job not found" });
+    }
+    if (error?.status === 400) {
+      return res.status(400).json({ success: false, message: "Repair job is not completed yet" });
+    }
+    if (error?.status === 409) {
+      return res.status(409).json({ success: false, message: "Invoice already exists for this repair job" });
+    }
+
+    return res.status(500).json({ success: false, message: "Invoice generation failed" });
+  }
+};
+
 // POST /api/v1/invoices
 export const addInvoice = async (req: Request, res: Response) => {
   const auth = (req as AuthRequest).user!;
@@ -43,7 +75,7 @@ export const addInvoice = async (req: Request, res: Response) => {
     return res.status(400).json({ success: false, message: "amount, paymentMethod, and paymentType are required" });
   }
 
-  const dbStatus = status === 'Paid' ? 'COMPLETED' : status || 'PENDING';
+  const dbStatus = status === "Paid" ? "COMPLETED" : status || "PENDING";
 
   try {
     const invoice = await createInvoice(auth.tenantId, {
@@ -58,7 +90,6 @@ export const addInvoice = async (req: Request, res: Response) => {
       transactionReference,
     });
 
-    // Invalidate dashboard analytics cache
     await invalidateDashboardCache(auth.tenantId, auth.shopId);
 
     return res.status(201).json({ success: true, invoice });
@@ -74,14 +105,13 @@ export const patchInvoiceStatus = async (req: Request, res: Response) => {
     const auth = (req as AuthRequest).user!;
     const id = req.params.id as string;
     const { status, amount } = req.body;
-    
+
     if (!status && amount === undefined) {
       return res.status(400).json({ success: false, message: "status or amount is required" });
     }
 
     const updated = await updateInvoiceStatus(id, auth.tenantId, status, amount ? Number(amount) : undefined);
 
-    // Invalidate dashboard analytics cache
     await invalidateDashboardCache(auth.tenantId, auth.shopId);
 
     return res.status(200).json({ success: true, invoice: updated });
@@ -98,7 +128,6 @@ export const removeInvoice = async (req: Request, res: Response) => {
     const id = req.params.id as string;
     await deleteInvoice(id, auth.tenantId);
 
-    // Invalidate dashboard analytics cache
     await invalidateDashboardCache(auth.tenantId, auth.shopId);
 
     return res.status(200).json({ success: true, message: "Invoice deleted" });

@@ -5,7 +5,7 @@ generator client {
 }
 
 datasource db {
-  provider  = "postgresql"
+  provider = "postgresql"
 }
 
 enum UserRole {
@@ -59,6 +59,7 @@ enum PaymentStatus {
   PENDING
   COMPLETED
   FAILED
+  OVERDUE
 }
 
 enum DeviceStatus {
@@ -76,8 +77,9 @@ model Tenant {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  shops Shop[]
-  users User[]
+  shops    Shop[]
+  users    User[]
+  invoices Invoice[]
 }
 
 model Shop {
@@ -114,6 +116,7 @@ model Shop {
   devices        Device[]
   repairs        Repair[]
   payments       Payment[]
+  invoices       Invoice[]
   partsInventory PartsInventory[]
   suppliers      Supplier[]
   purchaseOrders PurchaseOrder[]
@@ -122,7 +125,7 @@ model Shop {
   tasks          Task[]
   staffRoles     StaffRole[]
   requestOffers  RequestOffer[]
-  
+
   @@index([tenantId])
 }
 
@@ -217,6 +220,7 @@ model Customer {
   devices      Device[]
   repairs      Repair[]
   payments     Payment[]
+  invoices     Invoice[]
   appointments Appointment[]
   notes        CustomerNote[]
 
@@ -296,6 +300,7 @@ model Repair {
   device          Device            @relation(fields: [deviceId], references: [id], onDelete: Cascade)
   shop            Shop              @relation(fields: [shopId], references: [id], onDelete: Cascade)
   technician      User?             @relation(fields: [technicianId], references: [id], onDelete: SetNull)
+  invoices        Invoice[]
   photos          Photo[]
   notifications   Notification[]
   payments        Payment[]
@@ -349,6 +354,33 @@ model RepairTimelineEvent {
   repair Repair @relation(fields: [repairId], references: [id], onDelete: Cascade)
 
   @@index([repairId])
+}
+
+// Formal invoice generated from a completed repair job (tax breakdown,
+// invoice numbering). Distinct from Payment, which records individual
+// payment transactions against a repair/customer.
+model Invoice {
+  id            String   @id @default(cuid())
+  invoiceNumber String   @unique
+  tenantId      String
+  shopId        String
+  repairId      String   @unique
+  customerId    String
+  subtotal      Float
+  taxAmount     Float
+  total         Float
+  status        String   @default("PENDING")
+  createdAt     DateTime @default(now())
+
+  tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  shop     Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  repair   Repair   @relation(fields: [repairId], references: [id], onDelete: Cascade)
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([shopId])
+  @@index([customerId])
+  @@index([createdAt])
 }
 
 model Photo {
@@ -685,12 +717,12 @@ model Task {
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
   deletedAt         DateTime?
-  
+
   shop              Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
   assignedTo        User?    @relation("AssignedTasks", fields: [assignedToUserId], references: [id])
   createdBy         User     @relation("CreatedTasks", fields: [createdByUserId], references: [id])
   repair            Repair?  @relation(fields: [repairId], references: [id])
-  
+
   @@index([tenantId])
   @@index([shopId])
   @@index([assignedToUserId])
@@ -710,9 +742,9 @@ model StaffRole {
   description String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-  
+
   shop        Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
-  
+
   @@index([tenantId])
   @@index([shopId])
 }
@@ -760,33 +792,33 @@ model ServiceRequest {
   deviceType        String?  // e.g. 'iPhone 13'
   description       String   @db.Text
   imageUrls         String[]
-  
+
   // AI Suggestions
   aiCategory        String?
   aiBudgetMin       Int?
   aiBudgetMax       Int?
-  
+
   // Customer Input
   customerBudgetMin Int
   customerBudgetMax Int
-  
+
   // Location
   latitude          Float?
   longitude         Float?
   locationText      String?
-  
+
   // Customer Contact
   customerName      String
   customerPhone     String
   customerEmail     String?
-  
+
   // Status: pending, offered, confirmed, in_progress, completed, cancelled
   status            String   @default("pending")
-  
+
   // Accepted Offer
   acceptedOfferId   String?  @unique // unique constraint for one-to-one relation
   acceptedOffer     RequestOffer? @relation("AcceptedOffer", fields: [acceptedOfferId], references: [id])
-  
+
   createdAt         DateTime @default(now())
   updatedAt         DateTime @default(now()) @updatedAt
 
@@ -801,16 +833,16 @@ model RequestOffer {
   id              String   @id @default(uuid())
   requestId       String
   request         ServiceRequest @relation("RequestOffers", fields: [requestId], references: [id], onDelete: Cascade)
-  
+
   shopId          String
   shop            Shop     @relation(fields: [shopId], references: [id])
-  
+
   quotedAmount    Int
   message         String?  @db.Text
-  
+
   // Status: pending, accepted, rejected, expired
   status          String   @default("pending")
-  
+
   createdAt       DateTime @default(now())
 
   acceptedForRequest ServiceRequest? @relation("AcceptedOffer")
@@ -822,21 +854,21 @@ model RequestOffer {
 
 model DeliveryJob {
   id              String   @id @default(uuid())
-  
+
   requestId       String
   request         ServiceRequest @relation(fields: [requestId], references: [id])
-  
+
   offerId         String
   offer           RequestOffer   @relation(fields: [offerId], references: [id])
-  
+
   pickupAddress   String?
   deliveryAddress String?
-  
+
   partner         String   @default("manual") // 'manual', 'pickme', etc.
-  
+
   // Status: pending, picked_up, delivered, failed
   status          String   @default("pending")
-  
+
   createdAt       DateTime @default(now())
 }
 
@@ -885,4 +917,3 @@ model ActivityLog {
   @@index([shopId, action])
   @@index([tenantId, shopId, createdAt])
 }
-

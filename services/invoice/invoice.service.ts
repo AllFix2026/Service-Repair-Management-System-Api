@@ -23,9 +23,9 @@ export const getInvoices = async (tenantId: string) => {
       orderBy: { paymentDate: "desc" },
     }),
     prisma.device.findMany({
-      where: { 
+      where: {
         tenantId,
-        status: { in: ["SOLD", "ON_SALE", "COLLECTED"] }
+        status: { in: ["SOLD", "ON_SALE", "COLLECTED"] },
       },
       include: {
         customer: { select: { name: true, phone: true } },
@@ -59,10 +59,10 @@ export const getInvoices = async (tenantId: string) => {
     transactionReference: p.transactionReference ?? "",
     source: "payment" as const,
     advancePayment: p.repair?.advancePayment ?? 0,
-    partsCost: p.repair 
-      ? (p.repair.repairPartsUsed || []).reduce((sum, part) => sum + (part.totalPrice || (part.unitPrice * part.quantityUsed) || 0), 0) 
+    partsCost: p.repair
+      ? (p.repair.repairPartsUsed || []).reduce((sum, part) => sum + (part.totalPrice || (part.unitPrice * part.quantityUsed) || 0), 0)
       : 0,
-    laborCost: p.repair 
+    laborCost: p.repair
       ? Math.max(0, (p.repair.finalCost || p.repair.estimatedCost || Number(p.amount)) - ((p.repair.repairPartsUsed || []).reduce((sum, part) => sum + (part.totalPrice || (part.unitPrice * part.quantityUsed) || 0), 0)))
       : Number(p.amount) * 0.4,
   }));
@@ -70,23 +70,23 @@ export const getInvoices = async (tenantId: string) => {
   const deviceInvoices = devices.map((d) => {
     const device = d as any;
     return {
-    id: `dev-${device.id}`,
-    invoiceId: `#DEV-${device.id.substring(0, 8).toUpperCase()}`,
-    type: "inventory_item" as const,
-    name: device.customer?.name ?? "Walk-In",
-    phone: device.customer?.phone ?? "—",
-    amount: (device.soldPrice !== null && device.soldPrice !== undefined) ? Number(device.soldPrice) : (device.price ? Number(device.price) : 0),
-    status:
-      (d.status === "SOLD" || d.status === "COLLECTED")
-        ? "Paid"
-        : "Pending",
-    date: d.createdAt.toISOString(),
-    staff: "Admin",
-    device: `${d.brand} ${d.model}`,
-    paymentMethod: "CASH",
-    notes: d.imei ? `IMEI: ${d.imei}` : d.serialNo ? `S/N: ${d.serialNo}` : "",
-    transactionReference: d.imei ?? d.serialNo ?? "",
-    source: "device" as const,
+      id: `dev-${device.id}`,
+      invoiceId: `#DEV-${device.id.substring(0, 8).toUpperCase()}`,
+      type: "inventory_item" as const,
+      name: device.customer?.name ?? "Walk-In",
+      phone: device.customer?.phone ?? "—",
+      amount: (device.soldPrice !== null && device.soldPrice !== undefined) ? Number(device.soldPrice) : (device.price ? Number(device.price) : 0),
+      status:
+        (d.status === "SOLD" || d.status === "COLLECTED")
+          ? "Paid"
+          : "Pending",
+      date: d.createdAt.toISOString(),
+      staff: "Admin",
+      device: `${d.brand} ${d.model}`,
+      paymentMethod: "CASH",
+      notes: d.imei ? `IMEI: ${d.imei}` : d.serialNo ? `S/N: ${d.serialNo}` : "",
+      transactionReference: d.imei ?? d.serialNo ?? "",
+      source: "device" as const,
     };
   });
 
