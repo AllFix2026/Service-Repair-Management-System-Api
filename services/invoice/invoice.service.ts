@@ -95,6 +95,56 @@ export const getInvoices = async (tenantId: string) => {
   );
 };
 
+export const generateInvoice = async (repairId: string, tenantId: string) => {
+  logger.info(`[generateInvoice] -> Auto-generating invoice for repair: ${repairId}`);
+
+  const repair = await prisma.repair.findFirst({
+    where: { id: repairId, tenantId },
+    include: {
+      customer: true,
+      device: true,
+      repairPartsUsed: true,
+    },
+  });
+
+  if (!repair) throw { status: 404, message: "Repair not found" };
+  if (repair.status !== "COMPLETED" && repair.status !== "PAID") {
+    throw { status: 400, message: "Repair job is not completed yet" };
+  }
+
+  const existing = await prisma.payment.findFirst({
+    where: { repairId, tenantId },
+  });
+  if (existing) throw { status: 409, message: "Invoice already exists for this repair job" };
+
+  const partsCost = (repair.repairPartsUsed || []).reduce(
+    (sum, p) => sum + (p.totalPrice || p.unitPrice * p.quantityUsed || 0),
+    0
+  );
+  const total = repair.finalCost || repair.estimatedCost || 0;
+
+  const payment = await prisma.payment.create({
+    data: {
+      tenantId,
+      shopId: repair.shopId,
+      repairId: repair.id,
+      customerId: repair.customerId,
+      amount: total,
+      paymentMethod: "CASH" as any,
+      paymentType: "REPAIR" as any,
+      status: "COMPLETED" as any,
+      notes: `Repair: ${repair.reference || repair.id}`,
+    },
+  });
+
+  return {
+    invoiceNumber: `#REP-${repair.reference || payment.id.substring(0, 8).toUpperCase()}`,
+    subtotal: total - partsCost,
+    taxAmount: 0,
+    total,
+  };
+};
+
 export const createInvoice = async (
   tenantId: string,
   data: {
