@@ -3,75 +3,13 @@ import { logger } from "@/config/logger.config";
 import * as paymentService from "@/services/payment/payment.service";
 import { SubscriptionPlan, PaymentMethod } from "@prisma/client";
 import { env } from "@/config/env";
-import Stripe from "stripe";
 import crypto from "crypto";
 import * as payhereService from "@/services/payment/payhere.service";
 import * as registrationService from "@/services/registration/registration.service";
 
-const stripe = new Stripe(env.STRIPE_SECRET_KEY);
-
 export const handleStripeWebhook = async (req: Request, res: Response) => {
-  const sig = req.headers["stripe-signature"];
-  let event: any;
-
-  try {
-    const rawBody = (req as any).rawBody;
-
-    if (!sig || !rawBody) {
-      logger.error("[handleStripeWebhook] -> Missing stripe-signature or rawBody");
-      return res.status(400).json({ success: false, message: "Webhook signature verification failed" });
-    }
-
-    event = stripe.webhooks.constructEvent(
-      rawBody,
-      sig as string,
-      env.STRIPE_WEBHOOK_SECRET
-    );
-  } catch (error: any) {
-    logger.error(`[handleStripeWebhook] -> Signature error: ${error.message}`);
-    return res.status(400).json({ success: false, message: `Webhook Error: ${error.message}` });
-  }
-
-  logger.info(`[handleStripeWebhook] -> Verified event: ${event.type}`);
-
-  try {
-    switch (event.type) {
-      case "checkout.session.completed":
-        const session = event.data.object as any;
-        
-        // Null guards for metadata
-        const tenantId = session.metadata?.tenantId;
-        const plan = session.metadata?.plan as SubscriptionPlan;
-
-        if (!tenantId || !plan) {
-          logger.error("[handleStripeWebhook] -> Missing tenantId or plan in session metadata");
-          return res.status(400).json({ success: false, message: "Invalid session metadata" });
-        }
-        
-        logger.info(`[handleStripeWebhook] -> Processing checkout for tenant: ${tenantId}`);
-        
-        await paymentService.activateShopSubscription(
-          tenantId,
-          plan,
-          (session.amount_total || 0) / 100,
-          session.id,
-          PaymentMethod.CARD
-        );
-        break;
-
-      default:
-        logger.info(`[handleStripeWebhook] -> Unhandled event type: ${event.type}`);
-    }
-
-    return res.status(200).json({ success: true, received: true });
-  } catch (error: any) {
-    logger.error(`[handleStripeWebhook] -> Handler failed: ${error.message}`);
-    return res.status(500).json({ 
-      success: false,
-      message: "Webhook handler failed", 
-      details: error.message 
-    });
-  }
+  logger.warn("[handleStripeWebhook] -> Webhook received but Stripe is disabled.");
+  return res.status(400).json({ success: false, message: "Stripe payments are disabled. Please use PayHere." });
 };
 
 export const handlePayHereNotify = async (req: Request, res: Response) => {

@@ -58,20 +58,14 @@ export const approveRegistrationRequest = async (token: string) => {
     data: { status: "APPROVED" }
   });
 
-  // DEVELOPMENT BYPASS: Automatically finalize if in development
-  if (process.env.NODE_ENV === 'development') {
-    logger.info(`[RegistrationService] DEV MODE: Auto-finalizing registration for ${request.id}`);
-    await finalizeRegistration(request.id, "DEV_MOCK_PAYMENT");
-  } else {
-    try {
-      await sendUserPaymentLinkEmail(updatedRequest);
-      logger.info(`[RegistrationService] Payment link sent to user: ${request.ownerEmail}`);
-    } catch (error) {
-      logger.error(`[RegistrationService] Failed to send payment email: ${error}`);
-    }
+  try {
+    await sendUserPaymentLinkEmail(updatedRequest);
+    logger.info(`[RegistrationService] Payment link sent to user: ${request.ownerEmail}`);
+  } catch (error) {
+    logger.error(`[RegistrationService] Failed to send payment email: ${error}`);
   }
 
-  return { message: "Registration approved and account finalized successfully" };
+  return { message: "Registration approved and payment link sent successfully" };
 };
 
 export const finalizeRegistration = async (requestId: string, paymentIntentId: string) => {
@@ -84,9 +78,9 @@ export const finalizeRegistration = async (requestId: string, paymentIntentId: s
   if (!request) throw { status: 404, message: "Request not found" };
   if (request.status !== "APPROVED") throw { status: 400, message: "Request must be approved before payment" };
 
-  // Verify Stripe Status (Bypass in TEST mode)
-  if (process.env.PAYMENT_MODE === 'TEST') {
-    logger.info(`[RegistrationService] MOCK PAYMENT VERIFIED for request: ${requestId}`);
+  // Verify Stripe Status (Bypass in TEST mode or for PayHere/manual payments)
+  if (process.env.PAYMENT_MODE === 'TEST' || paymentIntentId.startsWith('PAYHERE_') || paymentIntentId.startsWith('BANK_')) {
+    logger.info(`[RegistrationService] Payment bypass verified for request: ${requestId} via ${paymentIntentId}`);
   } else {
     const isPaid = await verifyPaymentIntent(paymentIntentId, requestId);
     if (!isPaid) throw { status: 400, message: "Payment not verified" };
@@ -180,7 +174,7 @@ export const finalizeRegistration = async (requestId: string, paymentIntentId: s
 export const getRegistrationRequestStatus = async (id: string) => {
   const request = await prisma.registrationRequest.findUnique({
     where: { id },
-    select: { id: true, status: true, shopName: true, ownerEmail: true, ownerName: true }
+    select: { id: true, status: true, shopName: true, ownerEmail: true, ownerName: true, createdAt: true, fullData: true }
   });
   if (!request) throw { status: 404, message: "Request not found" };
   return request;
@@ -191,6 +185,42 @@ export const getAllRegistrationRequests = async (status?: string) => {
     where: status ? { status: status as any } : {},
     orderBy: { createdAt: "desc" }
   });
+};
+
+export const rejectRegistrationRequest = async (token: string) => {
+  logger.info(`[RegistrationService] Rejecting request with token: ${token}`);
+
+  const request = await prisma.registrationRequest.findUnique({
+    where: { approvalToken: token }
+  });
+
+  if (!request) throw { status: 404, message: "Registration request not found" };
+  if (request.status === "COMPLETED") throw { status: 400, message: "Request is already COMPLETED" };
+  if (request.status === "REJECTED") throw { status: 400, message: "Request is already REJECTED" };
+
+  await prisma.registrationRequest.update({
+    where: { id: request.id },
+    data: { status: "REJECTED" }
+  });
+
+  return { message: "Registration request rejected successfully" };
+};
+
+export const cancelRegistrationRequest = async (id: string) => {
+  logger.info(`[RegistrationService] Cancelling request with id: ${id}`);
+
+  const request = await prisma.registrationRequest.findUnique({
+    where: { id }
+  });
+
+  if (!request) throw { status: 404, message: "Registration request not found" };
+  if (request.status === "COMPLETED") throw { status: 400, message: "Request is already COMPLETED" };
+
+  await prisma.registrationRequest.delete({
+    where: { id }
+  });
+
+  return { message: "Registration request cancelled successfully" };
 };
 
 export const resendAdminApprovalEmail = async (id: string) => {

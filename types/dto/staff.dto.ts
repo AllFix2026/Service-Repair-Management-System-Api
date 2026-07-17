@@ -8,6 +8,7 @@ export interface ValidateShopIdRequestDto {
 
 export interface RegisterStaffRequestDto {
   full_name: string;
+  email: string;
   phone: string;
   password: string;
   shop_id: string;

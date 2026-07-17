@@ -5,16 +5,23 @@ type DeviceCreateInput = {
   customerId: string;
   brand: string;
   model: string;
+  type?: string;
   imei?: string;
   serialNo?: string;
+  price?: number;
+  status?: "ACTIVE" | "AVAILABLE" | "ON_SALE" | "SOLD" | "IN_SERVICE" | "COLLECTED";
 };
 
 type DeviceUpdateInput = {
   customerId?: string;
   brand?: string;
   model?: string;
+  type?: string;
   imei?: string;
   serialNo?: string;
+  price?: number;
+  status?: "ACTIVE" | "AVAILABLE" | "ON_SALE" | "SOLD" | "IN_SERVICE" | "COLLECTED";
+  autoUpdateCustomer?: boolean;
 };
 
 const deviceSelect = {
@@ -24,8 +31,11 @@ const deviceSelect = {
   customerId: true,
   brand: true,
   model: true,
+  type: true,
   imei: true,
   serialNo: true,
+  price: true,
+  status: true,
   createdAt: true,
   updatedAt: true,
 } as const;
@@ -135,10 +145,12 @@ export const getTenantDeviceById = async (id: string, tenantId: string) => {
   return device;
 };
 
+import { sendSms } from "@/services/notification/notification.service";
+
 export const createTenantDevice = async (tenantId: string, data: DeviceCreateInput) => {
   // Keep tenant boundaries strict by validating related entities first.
   const [shop, customer] = await Promise.all([
-    prisma.shop.findFirst({ where: { id: data.shopId, tenantId }, select: { id: true } }),
+    prisma.shop.findFirst({ where: { id: data.shopId, tenantId }, select: { id: true, name: true, address: true, city: true, phone: true } }),
     prisma.customer.findFirst({ where: { id: data.customerId, tenantId }, select: { id: true, shopId: true } }),
   ]);
 
@@ -155,18 +167,35 @@ export const createTenantDevice = async (tenantId: string, data: DeviceCreateInp
   }
 
   try {
-    return await prisma.device.create({
+    const device = await prisma.device.create({
       data: {
         tenantId,
         shopId: data.shopId,
         customerId: data.customerId,
         brand: data.brand,
         model: data.model,
+        type: data.type,
         imei: data.imei,
         serialNo: data.serialNo,
+        price: data.price,
+        status: data.status,
       },
       select: deviceWithCustomerSelect,
     });
+
+    // Send SMS notification
+    if (device.customer?.phone) {
+      const shopName = shop?.name || "Our Shop";
+      const addressParts = [shop?.address, shop?.city].filter(Boolean).join(", ");
+      const shopContact = shop?.phone ? `\nContact: ${shop.phone}` : "";
+      const shopFooter = `\n${shopName}${addressParts ? `\n${addressParts}` : ""}${shopContact}`;
+      const message = `Hi ${device.customer.name},\nYour device (${device.brand} ${device.model}) has been successfully registered in our system.${shopFooter}`;
+      await sendSms(device.customer.phone, message).catch(err => {
+        console.error("Non-fatal: Failed to send SMS on device creation:", err);
+      });
+    }
+
+    return device;
   } catch (error: any) {
     if (error.code === "P2002") {
       throw { status: 409, message: "A device with this IMEI already exists for this shop" };
@@ -178,7 +207,7 @@ export const createTenantDevice = async (tenantId: string, data: DeviceCreateInp
 export const updateTenantDevice = async (id: string, tenantId: string, data: DeviceUpdateInput) => {
   const existing = await prisma.device.findFirst({
     where: { id, tenantId },
-    select: { id: true, shopId: true },
+    select: { id: true, shopId: true, status: true },
   });
 
   if (!existing) {
@@ -202,11 +231,37 @@ export const updateTenantDevice = async (id: string, tenantId: string, data: Dev
   }
 
   try {
-    return await prisma.device.update({
+    const { autoUpdateCustomer, ...updateData } = data;
+
+    const device = await prisma.device.update({
       where: { id: existing.id },
-      data,
+      data: updateData,
       select: deviceWithCustomerSelect,
     });
+
+    if (autoUpdateCustomer && data.status && device.customer?.phone) {
+      const shop = await prisma.shop.findFirst({ where: { id: existing.shopId }, select: { name: true, address: true, city: true, phone: true } });
+      const shopName = shop?.name || "Our Shop";
+      const statusText = data.status.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, l => l.toUpperCase());
+      const addressParts = [shop?.address, shop?.city].filter(Boolean).join(", ");
+      const shopContact = shop?.phone ? `\nContact: ${shop.phone}` : "";
+      const shopFooter = `\n${shopName}${addressParts ? `\n${addressParts}` : ""}${shopContact}`;
+      let message = `Hi ${device.customer.name},\nYour device (${device.brand} ${device.model}) status has been updated to: ${statusText}.${shopFooter}`;
+      
+      if (data.status === 'SOLD') {
+        const invoiceUrl = `https://www.allfix.space/invoice/device/${device.id}`;
+        message = `Hi ${device.customer.name},\nYour device (${device.brand} ${device.model}) is sold, you can collect your cash.\n\nView Invoice: ${invoiceUrl}${shopFooter}`;
+      } else if (data.status === 'COLLECTED') {
+        const invoiceUrl = `https://www.allfix.space/invoice/device/${device.id}`;
+        message = `Hi ${device.customer.name},\nThank you for collecting your device (${device.brand} ${device.model}) and for your business.\n\nView Invoice: ${invoiceUrl}${shopFooter}`;
+      }
+      
+      await sendSms(device.customer.phone, message).catch((err) => {
+        console.error("Non-fatal: Failed to send SMS on device status update:", err);
+      });
+    }
+
+    return device;
   } catch (error: any) {
     if (error.code === "P2002") {
       throw { status: 409, message: "A device with this IMEI already exists for this shop" };

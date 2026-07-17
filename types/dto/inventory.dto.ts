@@ -1,10 +1,10 @@
 export interface CreateInventoryItemRequest {
   partName: string;
-  partNumber?: string;
-  category?: string;
+  partNumber?: string | null;
+  category?: string | null;
   compatibleBrands?: string[];
   compatibleModels?: string[];
-  supplierName?: string;
+  supplierName?: string | null;
   quantityInStock: number;
   minimumStockLevel: number;
   unitCost: number;
@@ -13,11 +13,11 @@ export interface CreateInventoryItemRequest {
 
 export interface UpdateInventoryItemRequest {
   partName?: string;
-  partNumber?: string;
-  category?: string;
+  partNumber?: string | null;
+  category?: string | null;
   compatibleBrands?: string[];
   compatibleModels?: string[];
-  supplierName?: string;
+  supplierName?: string | null;
   quantityInStock?: number;
   minimumStockLevel?: number;
   unitCost?: number;
@@ -48,4 +48,44 @@ export interface InventoryUsageItem {
   partName: string;
   totalQuantityUsed: number;
   totalRepairs: number;
+}
+
+export interface CreateSupplierRequest {
+  name: string;
+  contactName?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  address?: string | null;
+  website?: string | null;
+  category?: string | null;
+}
+
+export interface UpdateSupplierRequest {
+  name?: string;
+  contactName?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  address?: string | null;
+  website?: string | null;
+  category?: string | null;
+  status?: string;
+}
+
+export interface CreatePurchaseOrderRequest {
+  supplierId: string;
+  orderNumber: string;
+  notes?: string | null;
+  expectedDelivery?: Date | string | null;
+  items: {
+    partId?: string | null;
+    partName: string;
+    sku?: string | null;
+    quantity: number;
+    unitCost: number;
+  }[];
+}
+
+export interface UpdatePurchaseOrderStatusRequest {
+  status: string;
+  receivedAt?: Date | string | null;
 }

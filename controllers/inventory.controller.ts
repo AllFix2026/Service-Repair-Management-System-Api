@@ -6,6 +6,7 @@ import {
   deleteInventoryItem,
   getLowStockItems,
   getInventoryUsage,
+  getInventorySummary,
 } from "@/services/inventory/inventory.service";
 import {
   createInventoryItemSchema,
@@ -37,8 +38,20 @@ export const addInventoryItem = async (req: Request, res: Response) => {
 export const listInventoryItems = async (req: Request, res: Response) => {
   try {
     const auth = (req as AuthRequest).user!;
-    const items = await getInventoryItems(auth.tenantId, auth.shopId!);
-    return res.status(200).json({ items });
+    const page = req.query.page ? parseInt(req.query.page as string, 10) : undefined;
+    const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : undefined;
+    const search = req.query.search ? (req.query.search as string) : undefined;
+    const category = req.query.category ? (req.query.category as string) : undefined;
+    const status = req.query.status ? (req.query.status as string) : undefined;
+
+    const result = await getInventoryItems(auth.tenantId, auth.shopId!, {
+      page,
+      limit,
+      search,
+      category,
+      status,
+    });
+    return res.status(200).json(result);
   } catch (error: any) {
     logger.error(`[listInventoryItems] -> ${error.message}`);
     return res.status(error.status ?? 500).json({ error: "Unable to fetch inventory" });
@@ -113,5 +126,17 @@ export const usage = async (req: Request, res: Response) => {
   } catch (error: any) {
     logger.error(`[usage] -> ${error.message}`);
     return res.status(error.status ?? 500).json({ error: "Unable to generate inventory usage report" });
+  }
+};
+
+// GET /api/v1/inventory/summary
+export const summary = async (req: Request, res: Response) => {
+  try {
+    const auth = (req as AuthRequest).user!;
+    const inventorySummary = await getInventorySummary(auth.tenantId, auth.shopId!);
+    return res.status(200).json({ summary: inventorySummary });
+  } catch (error: any) {
+    logger.error(`[summary] -> ${error.message}`);
+    return res.status(error.status ?? 500).json({ error: "Unable to generate inventory summary" });
   }
 };

@@ -54,3 +54,5 @@ node_modules/
 .env
 
 /generated/prisma
+
+docs/API-Reports.md

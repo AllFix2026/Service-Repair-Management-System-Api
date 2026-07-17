@@ -1,6 +1,7 @@
 import { prisma } from "@/db/prisma";
 import { CreateInventoryItemRequest, UpdateInventoryItemRequest } from "@/types/dto/inventory.dto";
 import { logger } from "@/config/logger.config";
+import { getCachedData, setCachedData, invalidateCachePattern } from "@/services/cache/cache";
 
 export const createInventoryItem = async (
   data: CreateInventoryItemRequest,
@@ -27,31 +28,105 @@ export const createInventoryItem = async (
   });
 
   logger.info(`[createInventoryItem] -> Item created: ${item.id}`);
+
+  // Invalidate Cache for this shop
+  await invalidateCachePattern(`inv:${tenantId}:${shopId}:*`);
+
   return item;
 };
 
-export const getInventoryItems = async (tenantId: string, shopId: string) => {
-  logger.info(`[getInventoryItems] -> Fetching all items for shop: ${shopId}`);
+export const getInventoryItems = async (
+  tenantId: string,
+  shopId: string,
+  pagination?: {
+    page?: number;
+    limit?: number;
+    search?: string;
+    category?: string;
+    status?: string;
+  }
+) => {
+  const page = pagination?.page ?? 1;
+  const limit = pagination?.limit ?? 100;
+  const search = pagination?.search?.trim() ?? "";
+  const category = pagination?.category?.trim() ?? "";
+  const status = pagination?.status?.trim() ?? "";
 
-  const items = await prisma.partsInventory.findMany({
-    where: { tenantId, shopId, isActive: true },
-    select: {
-      id: true,
-      partName: true,
-      partNumber: true,
-      category: true,
-      quantityInStock: true,
-      minimumStockLevel: true,
-      unitCost: true,
-      sellingPrice: true,
-      supplierName: true,
-    },
-    orderBy: { createdAt: "desc" },
-  });
+  const cacheKey = `inv:${tenantId}:${shopId}:p:${page}:l:${limit}:s:${search}:c:${category}:st:${status}`;
 
-  logger.info(`[getInventoryItems] -> Found ${items.length} items`);
-  return items;
+  // Try Cache First
+  const cached = await getCachedData<any>(cacheKey);
+  if (cached) {
+    logger.info(`[getInventoryItems] -> Returning cached items for shop: ${shopId}`);
+    return cached;
+  }
+
+  logger.info(`[getInventoryItems] -> Cache miss. Querying database for shop: ${shopId}`);
+
+  // Base query filter
+  const whereClause: any = {
+    tenantId,
+    shopId,
+    isActive: true,
+  };
+
+  if (search) {
+    whereClause.OR = [
+      { partName: { contains: search, mode: "insensitive" } },
+      { partNumber: { contains: search, mode: "insensitive" } },
+    ];
+  }
+
+  if (category && category !== "All Categories" && category !== "All") {
+    whereClause.category = category;
+  }
+
+  // Fetch count and items in parallel for performance
+  const [totalCount, items] = await Promise.all([
+    prisma.partsInventory.count({ where: whereClause }),
+    prisma.partsInventory.findMany({
+      where: whereClause,
+      select: {
+        id: true,
+        partName: true,
+        partNumber: true,
+        category: true,
+        quantityInStock: true,
+        minimumStockLevel: true,
+        unitCost: true,
+        sellingPrice: true,
+        supplierName: true,
+      },
+      orderBy: { createdAt: "desc" },
+      skip: (page - 1) * limit,
+      take: limit,
+    }),
+  ]);
+
+  let filteredItems = items;
+  // If status filter is active, perform filter post-fetch since status is computed
+  if (status && status !== "All Status" && status !== "All") {
+    filteredItems = items.filter(item => {
+      const stock = item.quantityInStock ?? 0;
+      const minStock = item.minimumStockLevel ?? 5;
+      const itemStatus = stock === 0 ? "Out of Stock" : stock <= minStock ? "Low Stock" : "In Stock";
+      return itemStatus.toLowerCase() === status.toLowerCase();
+    });
+  }
+
+  const result = {
+    items: filteredItems,
+    totalCount,
+    page,
+    limit,
+  };
+
+  // Cache it for 5 minutes
+  await setCachedData(cacheKey, result, 300);
+
+  return result;
 };
+
 
 export const getInventoryItemById = async (
   itemId: string,
@@ -107,6 +182,10 @@ export const updateInventoryItem = async (
   });
 
   logger.info(`[updateInventoryItem] -> Item updated: ${itemId}`);
+  
+  // Invalidate Cache for this shop
+  await invalidateCachePattern(`inv:${tenantId}:${shopId}:*`);
+
   return item;
 };
 
@@ -133,6 +212,9 @@ export const deleteInventoryItem = async (
   });
 
   logger.info(`[deleteInventoryItem] -> Item soft deleted: ${itemId}`);
+
+  // Invalidate Cache for this shop
+  await invalidateCachePattern(`inv:${tenantId}:${shopId}:*`);
 };
 
 export const getLowStockItems = async (tenantId: string, shopId: string) => {
@@ -158,6 +240,32 @@ export const getLowStockItems = async (tenantId: string, shopId: string) => {
 
   logger.info(`[getLowStockItems] -> Found ${lowStockItems.length} low stock items`);
   return lowStockItems;
+};
+
+export const getInventorySummary = async (tenantId: string, shopId: string) => {
+  logger.info(`[getInventorySummary] -> Fetching inventory summary for shop: ${shopId}`);
+
+  const items = await prisma.partsInventory.findMany({
+    where: { tenantId, shopId, isActive: true },
+    select: {
+      quantityInStock: true,
+      minimumStockLevel: true,
+      unitCost: true,
+    },
+  });
+
+  const totalItems = items.length;
+  const lowStockCount = items.filter(i => i.quantityInStock <= i.minimumStockLevel && i.quantityInStock > 0).length;
+  const outOfStockCount = items.filter(i => i.quantityInStock === 0).length;
+  const totalValue = items.reduce((sum, i) => sum + (i.quantityInStock * i.unitCost), 0);
+
+  return {
+    totalItems,
+    lowStockCount,
+    outOfStockCount,
+    totalValue,
+    pendingPOs: 5, // Mocked for now
+  };
 };
 
 export const getInventoryUsage = async (tenantId: string, shopId: string) => {

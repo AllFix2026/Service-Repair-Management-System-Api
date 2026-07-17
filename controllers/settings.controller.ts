@@ -39,9 +39,12 @@ export const updateSettings = async (req: AuthRequest, res: Response) => {
   }
 
   try {
+    console.log('[updateSettings] Request Body:', JSON.stringify(req.body, null, 2));
+    console.log('[updateSettings] Parsed Data:', JSON.stringify(parsed.data, null, 2));
     await updateShopSettings(req.user!.tenantId, shopId, parsed.data);
     return res.status(200).json({ message: "Settings updated successfully" });
   } catch (error: any) {
+    console.error('[updateSettings] Error:', error);
     logger.error(`[updateSettings] -> ${error?.message ?? error}`);
     if (error?.code === "NOT_FOUND") {
       return res.status(404).json({ error: "Unable to update settings" });

@@ -31,7 +31,7 @@ export const env = {
   }),
 
   ACCESS_TOKEN_EXPIRY: getEnv("ACCESS_TOKEN_EXPIRY", {
-    defaultValue: "15m",
+    defaultValue: "365d",
   }),
 
   REFRESH_TOKEN_EXPIRY: getEnv("REFRESH_TOKEN_EXPIRY", {
@@ -79,10 +79,10 @@ export const env = {
 
   // ── Stripe ───────────────────────────────────────────
   STRIPE_SECRET_KEY: getEnv("STRIPE_SECRET_KEY", {
-    required: true,
+    defaultValue: "",
   }),
 
   STRIPE_WEBHOOK_SECRET: getEnv("STRIPE_WEBHOOK_SECRET", {
-    required: true,
+    defaultValue: "",
   }),
 } as const;

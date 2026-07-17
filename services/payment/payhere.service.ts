@@ -45,7 +45,7 @@ export const generatePayHereHash = (
 export const getPayHereConfig = () => {
   return {
     merchant_id: process.env.PAYHERE_MERCHANT_ID || '',
-    merchant_secret: process.env.PAYHERE_SECRET || '',
+    merchant_secret: process.env.PAYHERE_MERCHANT_SECRET || process.env.PAYHERE_SECRET || '',
     is_sandbox: process.env.PAYHERE_MODE === 'sandbox',
   };
 };

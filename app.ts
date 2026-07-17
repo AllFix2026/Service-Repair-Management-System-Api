@@ -7,6 +7,7 @@ import cors from "cors";
 import "dotenv/config";
 import express, { Application, Request, Response } from "express";
 import helmet from "helmet";
+
 const app: Application = express();
 
 // set security HTTP headers
@@ -25,8 +26,8 @@ app.use(
 // parse urlencoded request body
 app.use(
   express.urlencoded({
-    extended: false,
-    parameterLimit: 10,
+    extended: true,
+    parameterLimit: 100000,
     limit: "5mb",
   }),
 );

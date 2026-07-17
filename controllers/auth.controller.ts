@@ -7,6 +7,7 @@ import {
   refreshSession,
   requestPasswordReset,
   completePasswordReset,
+  updateCurrentUser,
 } from "@/services/auth/auth.service";
 import type { AuthRequest } from "@/types/auth.types";
 
@@ -140,5 +141,20 @@ export const resetPassword = async (req: Request, res: Response) => {
     });
   }
 };
+export const updateMe = async (req: AuthRequest, res: Response) => {
+  if (!req.user) {
+    return res.status(401).json({ success: false, message: "Authentication required" });
+  }
 
+  try {
+    const { fullName, password } = req.body;
+    const data = await updateCurrentUser(req.user.id, { fullName, password });
+    return res.status(200).json({ success: true, data });
+  } catch (error: any) {
+    return res.status(error.status ?? 500).json({
+      success: false,
+      message: error.message ?? "Failed to update profile",
+    });
+  }
+};
 

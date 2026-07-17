@@ -39,7 +39,8 @@ export const activateShopSubscription = async (
     // 2. Record Payment
     const payment = await tx.payment.create({
       data: {
-        tenantId: tenantId,
+        tenantId: shop.tenantId,
+        shopId: shop.id,
         amount: amount,
         paymentMethod: method,
         paymentType: PaymentType.FULL,
@@ -73,6 +74,7 @@ export const activateShopSubscription = async (
 export const recordManualPayment = async (
   tenantId: string,
   data: {
+    shopId: string;
     amount: number;
     reference: string;
     method: PaymentMethod;
@@ -86,6 +88,7 @@ export const recordManualPayment = async (
   return await prisma.payment.create({
     data: {
       tenantId,
+      shopId: data.shopId,
       amount: data.amount,
       paymentMethod: data.method,
       paymentType: data.type,

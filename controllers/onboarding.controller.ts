@@ -1,6 +1,5 @@
 import { Request, Response } from "express";
 import * as registrationService from "@/services/registration/registration.service";
-import * as stripeService from "@/services/stripe/stripe.service";
 import { logger } from "@/config/logger.config";
 import { registerShopSchema } from "@/validators/shop/shop.validator";
 
@@ -22,6 +21,28 @@ export const approveRegistration = async (req: Request, res: Response) => {
     return res.status(200).json({ message: "Registration approved successfully" });
   } catch (error: any) {
     logger.error(`[OnboardingController] Error approving: ${error.message}`);
+    return res.status(error.status || 500).json({ message: error.message || "Internal server error" });
+  }
+};
+
+export const rejectRegistration = async (req: Request, res: Response) => {
+  try {
+    const { token } = req.params;
+    await registrationService.rejectRegistrationRequest(token as string);
+    return res.status(200).json({ success: true, message: "Registration rejected successfully" });
+  } catch (error: any) {
+    logger.error(`[OnboardingController] Error rejecting: ${error.message}`);
+    return res.status(error.status || 500).json({ message: error.message || "Internal server error" });
+  }
+};
+
+export const cancelRegistration = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    await registrationService.cancelRegistrationRequest(id as string);
+    return res.status(200).json({ success: true, message: "Registration cancelled successfully" });
+  } catch (error: any) {
+    logger.error(`[OnboardingController] Error cancelling: ${error.message}`);
     return res.status(error.status || 500).json({ message: error.message || "Internal server error" });
   }
 };
@@ -61,6 +82,8 @@ export const createPayHereParams = async (req: Request, res: Response) => {
     const fee = parseFloat(process.env.REGISTRATION_FEE_LKR || "2500");
     const currency = "LKR";
     
+    logger.info(`[PayHere Debug] config: ${JSON.stringify(config)}, fee: ${fee}, currency: ${currency}, requestId: ${requestId}`);
+    
     const hash = payhereService.generatePayHereHash(
       config.merchant_id,
       requestId,
@@ -68,6 +91,8 @@ export const createPayHereParams = async (req: Request, res: Response) => {
       currency,
       config.merchant_secret
     );
+
+    logger.info(`[PayHere Debug] Generated Hash: ${hash}`);
 
     const params = {
       merchant_id: config.merchant_id,
@@ -87,6 +112,15 @@ export const createPayHereParams = async (req: Request, res: Response) => {
       address: "Address", 
       city: "City",
       country: "Sri Lanka",
+      _debug: {
+        config,
+        fee,
+        currency,
+        calculatedHash: hash,
+        envSecret: process.env.PAYHERE_MERCHANT_SECRET,
+        envId: process.env.PAYHERE_MERCHANT_ID,
+        envFee: process.env.REGISTRATION_FEE_LKR
+      }
     };
 
     return res.json({ success: true, data: params });
@@ -97,22 +131,10 @@ export const createPayHereParams = async (req: Request, res: Response) => {
 };
 
 export const createPaymentIntent = async (req: Request, res: Response) => {
-  try {
-    const { requestId } = req.body;
-    const request = await registrationService.getRegistrationRequestStatus(requestId);
-    
-    if (request.status !== "APPROVED") {
-      return res.status(400).json({ message: "Registration not yet approved by admin" });
-    }
-
-    const fee = parseInt(process.env.REGISTRATION_FEE_LKR || "25");
-    const intent = await stripeService.createPaymentIntent(fee, "lkr", { requestId });
-    
-    return res.json(intent);
-  } catch (error: any) {
-    logger.error(`[OnboardingController] Error creating intent: ${error.message}`);
-    return res.status(500).json({ message: error.message });
-  }
+  return res.status(400).json({ 
+    success: false, 
+    message: "Stripe payments are disabled. Please use PayHere instead." 
+  });
 };
 
 export const finalizeRegistration = async (req: Request, res: Response) => {

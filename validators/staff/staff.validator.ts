@@ -44,6 +44,7 @@ export const validateShopIdSchema = z.object({
 
 export const registerStaffSchema = z.object({
   full_name: z.string().min(1, "full_name is required"),
+  email: z.string().email("Invalid email format"),
   phone: z.string().min(8, "phone is required"),
   password: z.string().min(8, "Password must be at least 8 characters"),
   shop_id: z.string().min(1, "shop_id is required"),

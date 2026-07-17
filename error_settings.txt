@@ -1,0 +1,34 @@
+Error: 
+Invalid `transactions.push(prisma.shop.update()` invocation in
+C:\Users\Thahe\Documents\GitHub\Service-Repair-Management-System-Api\services\settings\settings.service.ts:114:37
+
+  111 const transactions: any[] = [];
+  112 
+  113 if (Object.keys(shopUpdatePayload).length > 0) {
+→ 114   transactions.push(prisma.shop.update(
+Transaction API error: A commit cannot be executed on an expired transaction. The timeout for this transaction was 5000 ms, however 12489 ms passed since the start of the transaction. Consider increasing the interactive transaction timeout or doing less work in the transaction.
+Stack: PrismaClientKnownRequestError: 
+Invalid `transactions.push(prisma.shop.update()` invocation in
+C:\Users\Thahe\Documents\GitHub\Service-Repair-Management-System-Api\services\settings\settings.service.ts:114:37
+
+  111 const transactions: any[] = [];
+  112 
+  113 if (Object.keys(shopUpdatePayload).length > 0) {
+→ 114   transactions.push(prisma.shop.update(
+Transaction API error: A commit cannot be executed on an expired transaction. The timeout for this transaction was 5000 ms, however 12489 ms passed since the start of the transaction. Consider increasing the interactive transaction timeout or doing less work in the transaction.
+    at zr.handleRequestError (C:\Users\Thahe\Documents\GitHub\Service-Repair-Management-System-Api\node_modules\@prisma\client\src\runtime\RequestHandler.ts:237:13)
+    at zr.handleAndLogRequestError (C:\Users\Thahe\Documents\GitHub\Service-Repair-Management-System-Api\node_modules\@prisma\client\src\runtime\RequestHandler.ts:183:12)
+    at zr.request (C:\Users\Thahe\Documents\GitHub\Service-Repair-Management-System-Api\node_modules\@prisma\client\src\runtime\RequestHandler.ts:152:12)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async a (C:\Users\Thahe\Documents\GitHub\Service-Repair-Management-System-Api\node_modules\@prisma\client\src\runtime\getPrismaClient.ts:808:24)
+JSON: {
+  "code": "P2028",
+  "meta": {
+    "modelName": "Shop",
+    "operation": "commit",
+    "timeout": 5000,
+    "timeTaken": 12489
+  },
+  "clientVersion": "7.4.1",
+  "name": "PrismaClientKnownRequestError"
+}

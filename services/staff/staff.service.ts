@@ -145,6 +145,7 @@ export const listStaffMembers = async (
       email: true,
       fullName: true,
       name: true,
+      phone: true,
       staffDisplayId: true,
       role: true,
       isActive: true,
@@ -155,9 +156,13 @@ export const listStaffMembers = async (
 
   return users.map((u) => ({
     staffId: u.staffDisplayId ?? u.id,
+    id: u.id,
     name: (u.name && u.name.trim()) || (u.fullName && u.fullName.trim()) || u.email || u.id,
+    email: u.email,
+    phone: u.phone,
     role: roleToLabel(u.role),
     isActive: u.isActive,
+    createdAt: u.createdAt,
   }));
 };
 
@@ -203,6 +208,7 @@ export const createStaffMember = async (
         fullName: data.name,
         phone: data.phone?.trim() ? data.phone.trim() : null,
         staffDisplayId,
+        isActive: true,
       } as any,
     });
   } catch (error: any) {
@@ -354,16 +360,25 @@ export const registerStaffService = async (
     }
 
     const existingUser = await prisma.user.findFirst({
-      where: { phone: payload.phone },
-      select: { id: true, shopId: true },
+      where: {
+        OR: [
+          { phone: payload.phone },
+          { email: payload.email.toLowerCase() }
+        ]
+      },
+      select: { id: true, shopId: true, email: true, phone: true },
     });
 
-    if (existingUser?.shopId && existingUser.shopId !== shop.id) {
-      throw new ApiError(403, "User already registered to another shop");
-    }
-
-    if (existingUser?.shopId === shop.id) {
-      throw new ApiError(403, "User already registered to this shop");
+    if (existingUser) {
+      if (existingUser.email?.toLowerCase() === payload.email.toLowerCase()) {
+        throw new ApiError(409, "Email already registered");
+      }
+      if (existingUser.shopId && existingUser.shopId !== shop.id) {
+        throw new ApiError(403, "User already registered to another shop");
+      }
+      if (existingUser.shopId === shop.id) {
+        throw new ApiError(403, "User already registered to this shop");
+      }
     }
 
     const hashedPassword = await bcrypt.hash(payload.password, BCRYPT_ROUNDS);
@@ -373,7 +388,7 @@ export const registerStaffService = async (
         fullName: payload.full_name,
         name: payload.full_name,
         phone: payload.phone,
-        email: null,
+        email: payload.email.toLowerCase(),
         password: hashedPassword,
         role: payload.role,
         tenantId: shop.tenantId,
@@ -383,6 +398,7 @@ export const registerStaffService = async (
       select: {
         id: true,
         fullName: true,
+        email: true,
         phone: true,
         role: true,
         tenantId: true,
@@ -394,7 +410,7 @@ export const registerStaffService = async (
 
     const accessToken = signAccessToken({
       sub: user.id,
-      email: "",
+      email: user.email ?? "",
       role: user.role as JwtRole,
       shopId: user.shopId,
       tenantId: user.tenantId,
