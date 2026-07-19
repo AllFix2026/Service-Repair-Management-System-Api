@@ -198,13 +198,6 @@ const formatRegistrationResponse = (request: any) => {
     owner: sanitizedOwner
   };
 
-  if (formattedData.owner && 'password' in formattedData.owner) {
-    delete formattedData.owner.password;
-  }
-  
-  if (data.owner && 'password' in data.owner) {
-    delete data.owner.password;
-  }
 
   return {
     ...request,
