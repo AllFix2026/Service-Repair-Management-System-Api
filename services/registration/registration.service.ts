@@ -179,6 +179,7 @@ const formatRegistrationResponse = (request: any) => {
   const sanitizedOwner = data.owner ? {
     name: data.owner.name ?? null,
     email: data.owner.email ?? null,
+    phone: data.owner.phone ?? null,
   } : null;
 
   const formattedData = {
