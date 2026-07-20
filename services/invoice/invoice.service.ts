@@ -1,6 +1,38 @@
 import { prisma } from "@/db/prisma";
 import { logger } from "@/config/logger.config";
 
+// Valid PaymentStatus enum values from Prisma schema
+const VALID_PAYMENT_STATUSES = ["PENDING", "OVERDUE", "COMPLETED", "FAILED"] as const;
+
+// Map user-friendly status names to database enum values
+export const mapStatusToDatabase = (status: string | undefined): string | undefined => {
+  if (!status) return undefined;
+  
+  const statusUpper = status.toUpperCase();
+  
+  // Direct mapping for database values
+  if (VALID_PAYMENT_STATUSES.includes(statusUpper as any)) {
+    return statusUpper;
+  }
+  
+  // Mapping for user-friendly names
+  const statusMap: Record<string, string> = {
+    "PAID": "COMPLETED",
+    "PAY": "COMPLETED",
+    "COMPLETE": "COMPLETED",
+  };
+  
+  const mappedStatus = statusMap[statusUpper];
+  if (!mappedStatus) {
+    throw {
+      status: 400,
+      message: `Invalid status "${status}". Allowed values: PENDING, OVERDUE, COMPLETED, FAILED`,
+    };
+  }
+  
+  return mappedStatus;
+};
+
 // Invoices are derived from the Payment model (linked to Repairs / standalone)
 // AND from Device records (device sales / inventory)
 export const getInvoices = async (tenantId: string) => {
@@ -42,6 +74,8 @@ export const getInvoices = async (tenantId: string) => {
     status:
       p.status === "COMPLETED"
         ? "Paid"
+        : p.status === "OVERDUE"
+        ? "Overdue"
         : p.status === "PENDING"
         ? "Pending"
         : "Failed",
@@ -124,23 +158,80 @@ export const updateInvoiceStatus = async (
   status?: string,
   amount?: number
 ) => {
-  logger.info(`[updateInvoiceStatus] -> Updating invoice: ${id} to status: ${status}, amount: ${amount}`);
+  try {
+    logger.info(
+      `[updateInvoiceStatus] -> Updating invoice: ${id}, tenantId: ${tenantId}, status: ${status}, amount: ${amount}`
+    );
 
-  const existing = await prisma.payment.findFirst({ where: { id, tenantId } });
-  if (!existing) throw { status: 404, message: "Invoice not found" };
+    // Validate and map status
+    const mappedStatus = mapStatusToDatabase(status);
 
-  return prisma.payment.update({
-    where: { id },
-    data: {
-      ...(status && { status: status as any }),
-      ...(amount !== undefined && { amount: amount }),
-    },
-  });
+    // Validate amount if provided
+    if (amount !== undefined && (typeof amount !== "number" || amount < 0)) {
+      throw {
+        status: 400,
+        message: "Amount must be a valid positive number",
+      };
+    }
+
+    // Check if it's a device invoice (prefixed with "dev-")
+    if (id.startsWith("dev-")) {
+      const deviceId = id.substring(4); // Remove "dev-" prefix
+      const existing = await prisma.device.findFirst({ where: { id: deviceId, tenantId } });
+      if (!existing) throw { status: 404, message: "Invoice not found" };
+
+      logger.info(`[updateInvoiceStatus] -> Updating device invoice: ${deviceId}`);
+
+      return prisma.device.update({
+        where: { id: deviceId },
+        data: {
+          ...(mappedStatus && { status: mappedStatus === "COMPLETED" ? "SOLD" : "ON_SALE" }),
+          ...(amount !== undefined && { price: amount }),
+        },
+      });
+    }
+
+    // Otherwise, it's a payment invoice
+    const existing = await prisma.payment.findFirst({ where: { id, tenantId } });
+    if (!existing) {
+      logger.warn(`[updateInvoiceStatus] -> Invoice not found: ${id}`);
+      throw { status: 404, message: "Invoice not found" };
+    }
+
+    logger.info(`[updateInvoiceStatus] -> Updating payment invoice: ${id} with status: ${mappedStatus}`);
+
+    const updated = await prisma.payment.update({
+      where: { id },
+      data: {
+        ...(mappedStatus && { status: mappedStatus as any }),
+        ...(amount !== undefined && { amount: amount }),
+      },
+    });
+
+    logger.info(`[updateInvoiceStatus] -> Successfully updated invoice: ${id}`);
+    return updated;
+  } catch (error: any) {
+    logger.error(
+      `[updateInvoiceStatus] -> Error updating invoice: ${error.message}, Stack: ${error.stack}`
+    );
+    throw error;
+  }
 };
 
 export const deleteInvoice = async (id: string, tenantId: string) => {
   logger.info(`[deleteInvoice] -> Deleting invoice: ${id}`);
 
+  // Check if it's a device invoice (prefixed with "dev-")
+  if (id.startsWith("dev-")) {
+    const deviceId = id.substring(4); // Remove "dev-" prefix
+    const existing = await prisma.device.findFirst({ where: { id: deviceId, tenantId } });
+    if (!existing) throw { status: 404, message: "Invoice not found" };
+    
+    await prisma.device.delete({ where: { id: deviceId } });
+    return;
+  }
+
+  // Otherwise, it's a payment invoice
   const existing = await prisma.payment.findFirst({ where: { id, tenantId } });
   if (!existing) throw { status: 404, message: "Invoice not found" };
 
