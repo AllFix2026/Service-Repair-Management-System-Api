@@ -118,7 +118,59 @@ export const getDashboardAnalytics = async (auth: DashboardAuthContext, days: nu
     select: { createdAt: true }
   });
 
-  const totalRevenue = completedPayments.reduce((sum, p) => sum + Number(p.amount || 0), 0);
+  const totalRevenueFromPayments = completedPayments.reduce((sum, p) => sum + Number(p.amount || 0), 0);
+
+  // Get sum of advance payments for all active/non-completed repairs to reflect actual cash flow
+  const activeRepairsAdvance = await prisma.repair.aggregate({
+    where: {
+      ...baseWhere,
+      status: { notIn: ["PAID", "DELIVERED"] },
+      createdAt: { gte: rangeDate }
+    },
+    _sum: {
+      advancePayment: true
+    }
+  });
+
+  const totalRevenue = totalRevenueFromPayments + Number(activeRepairsAdvance._sum.advancePayment || 0);
+
+  // Calculate total parts cost using raw SQL (works regardless of Prisma client generation state)
+  let totalPartsCost = 0;
+  try {
+    // Direct SQL join: RepairPartsUsed → PartsInventory → unitCost (stock value)
+    // Count parts from IN_PROGRESS, READY_TO_TAKE, PAID, or DELIVERED repairs
+    let rawResult: any[];
+    if (shopId) {
+      rawResult = await prisma.$queryRawUnsafe(`
+        SELECT COALESCE(SUM(rpu."quantityUsed" * COALESCE(pi."unitCost", rpu."unitPrice" * 0.8)), 0) AS "partsCost"
+        FROM "RepairPartsUsed" rpu
+        JOIN "Repair" r ON r.id = rpu."repairId"
+        LEFT JOIN "PartsInventory" pi ON pi.id = rpu."partId"
+        WHERE r."tenantId" = $1
+          AND r."shopId" = $2
+          AND r.status IN ('IN_PROGRESS', 'READY_TO_TAKE', 'PAID', 'DELIVERED')
+          AND r."createdAt" >= $3
+      `, tenantId, shopId, rangeDate);
+    } else {
+      rawResult = await prisma.$queryRawUnsafe(`
+        SELECT COALESCE(SUM(rpu."quantityUsed" * COALESCE(pi."unitCost", rpu."unitPrice" * 0.8)), 0) AS "partsCost"
+        FROM "RepairPartsUsed" rpu
+        JOIN "Repair" r ON r.id = rpu."repairId"
+        LEFT JOIN "PartsInventory" pi ON pi.id = rpu."partId"
+        WHERE r."tenantId" = $1
+          AND r.status IN ('IN_PROGRESS', 'READY_TO_TAKE', 'PAID', 'DELIVERED')
+          AND r."createdAt" >= $2
+      `, tenantId, rangeDate);
+    }
+
+    totalPartsCost = Number(rawResult?.[0]?.partsCost ?? 0);
+    logger.info(`[getDashboardAnalytics] -> Parts cost (raw SQL): ${totalPartsCost}`);
+  } catch (err: any) {
+    logger.error(`[getDashboardAnalytics] -> Raw SQL parts cost failed: ${err.message}`);
+    // Fallback: totalPartsCost stays 0 (net profit = revenue)
+  }
+
+  const netProfit = Math.max(0, totalRevenue - totalPartsCost);
 
   // Calculate percentage changes (mocked logic for now)
   const revenueChange = "+15%";
@@ -196,10 +248,15 @@ export const getDashboardAnalytics = async (auth: DashboardAuthContext, days: nu
   const countMap = Object.fromEntries(statusCounts.map(s => [s.status, s._count.status]));
 
   const statusData = allStatuses.map(status => {
-    let color = '#F59E0B'; // Default (NOT_STARTED)
-    if (status === 'DELIVERED' || status === 'PAID') color = '#10B981';
-    if (status === 'IN_PROGRESS') color = '#4F46E5';
-    if (status === 'READY_TO_TAKE') color = '#10B981'; // Green for ready
+    // Fully distinct color per status — no two statuses share a color
+    const colorMap: Record<string, string> = {
+      'NOT_STARTED':  '#F59E0B', // Amber   — Pending / waiting
+      'IN_PROGRESS':  '#6366F1', // Indigo  — actively being worked on
+      'READY_TO_TAKE':'#3B82F6', // Blue    — ready for pickup
+      'DELIVERED':    '#8B5CF6', // Violet  — handed over to customer
+      'PAID':         '#10B981', // Emerald — fully closed & paid
+    };
+    const color = colorMap[status] ?? '#94A3B8';
 
     return {
       name: status.replace('_', ' '),
@@ -439,7 +496,9 @@ export const getDashboardAnalytics = async (auth: DashboardAuthContext, days: nu
       totalRepairs,
       repairChange,
       pendingRepairs: pendingRepairsCount,
-      activeTechnicians: activeTechniciansCount
+      activeTechnicians: activeTechniciansCount,
+      netProfit,
+      totalPartsCost
     },
     revenueData,
     statusData,
@@ -458,7 +517,7 @@ export const getDashboardAnalytics = async (auth: DashboardAuthContext, days: nu
   };
 
   try {
-    await setCachedData(cacheKey, result, 300); // Cache for 5 mins
+    await setCachedData(cacheKey, result, 60); // Cache for 1 min
     logger.info(`[getDashboardAnalytics] -> Cached analytics result for key: ${cacheKey}`);
   } catch (err: any) {
     logger.warn(`[getDashboardAnalytics] -> Cache write failed: ${err.message}`);

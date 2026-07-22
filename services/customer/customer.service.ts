@@ -10,25 +10,23 @@ export const createCustomer = async (
   logger.info(`[createCustomer] -> Creating customer: ${data.name}`);
 
   const customer = await prisma.customer.create({
-  data: {
-    tenantId,
-    shopId,
-    name: data.name,
-    phone: data.phone ?? null,
-    email: data.email ?? null,
-    address: data.address ?? null,
-    loyaltyPoints: data.loyaltyPoints ?? 0,
-    tier: data.tier ?? "Regular",
-    tags: data.tags ?? [],
-    preferences: data.preferences ?? {
-
-      preferredContact: "Phone",
-      notifications: { email: true, sms: true, push: true },
-      language: "English"
+    data: {
+      tenantId,
+      shopId,
+      name: data.name,
+      phone: data.phone ?? null,
+      email: data.email ?? null,
+      address: data.address ?? null,
+      loyaltyPoints: data.loyaltyPoints ?? 0,
+      tier: data.tier ?? "Regular",
+      tags: data.tags ?? [],
+      preferences: data.preferences ?? {
+        preferredContact: "Phone",
+        notifications: { email: true, sms: true, push: true },
+        language: "English"
+      },
     },
-  },
-});
-
+  });
 
   logger.info(`[createCustomer] -> Customer created: ${customer.id}`);
   return customer;

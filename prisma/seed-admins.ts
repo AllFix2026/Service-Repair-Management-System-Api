@@ -1,7 +1,14 @@
 import { PrismaClient } from '@prisma/client';
-import bcrypt from 'bcrypt';
+import { PrismaPg } from "@prisma/adapter-pg";
+import { Pool } from "pg";
+import * as dotenv from 'dotenv';
+dotenv.config();
 
-const prisma = new PrismaClient();
+const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+const prisma = new PrismaClient({
+  adapter: new PrismaPg(pool),
+});
+import bcrypt from 'bcrypt';
 
 async function main() {
   // Create a default tenant for system admins

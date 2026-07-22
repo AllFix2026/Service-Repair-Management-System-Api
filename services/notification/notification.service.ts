@@ -1,11 +1,17 @@
 import { logger } from "@/config/logger.config";
 import * as https from "https";
 
-const TEXT_LK_TOKEN = "2633|5ClinrHne5X6blSL2PV1gHoEhDeJgmczG05thcWk7651da39";
 const TEXT_LK_ENDPOINT = "app.text.lk";
 const TEXT_LK_PATH = "/api/v3/sms/send";
 
 export const sendSms = async (to: string, message: string) => {
+  const TEXT_LK_TOKEN = process.env.TEXT_LK_TOKEN || "";
+  
+  if (!TEXT_LK_TOKEN) {
+    logger.warn(`[sendSms] -> TEXT_LK_TOKEN is missing. SMS not sent.`);
+    return;
+  }
+
   logger.info(`[sendSms] -> Using v3 API for ${to}`);
 
   let cleanTo = to.replace(/\D/g, "");
@@ -17,7 +23,7 @@ export const sendSms = async (to: string, message: string) => {
 
   const postData = JSON.stringify({
     recipient: cleanTo,
-    sender_id: "TextLKDemo",
+    sender_id: "ALL FIX",
     type: "plain",
     message: message,
   });

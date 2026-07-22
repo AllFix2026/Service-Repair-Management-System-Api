@@ -245,6 +245,23 @@ export const rejectRegistrationRequest = async (token: string) => {
   return { message: "Registration request rejected successfully" };
 };
 
+export const cancelRegistrationRequest = async (id: string) => {
+  logger.info(`[RegistrationService] Cancelling request with id: ${id}`);
+
+  const request = await prisma.registrationRequest.findUnique({
+    where: { id }
+  });
+
+  if (!request) throw { status: 404, message: "Registration request not found" };
+  if (request.status === "COMPLETED") throw { status: 400, message: "Request is already COMPLETED" };
+
+  await prisma.registrationRequest.delete({
+    where: { id }
+  });
+
+  return { message: "Registration request cancelled successfully" };
+};
+
 export const resendAdminApprovalEmail = async (id: string) => {
   logger.info(`[RegistrationService] Resending admin notification for request: ${id}`);
 

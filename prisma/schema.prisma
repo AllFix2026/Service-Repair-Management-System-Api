@@ -60,6 +60,7 @@ enum PaymentStatus {
   OVERDUE
   COMPLETED
   FAILED
+  OVERDUE
 }
 
 enum DeviceStatus {
@@ -77,8 +78,9 @@ model Tenant {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  shops Shop[]
-  users User[]
+  shops    Shop[]
+  users    User[]
+  invoices Invoice[]
 }
 
 model Shop {
@@ -115,6 +117,7 @@ model Shop {
   devices        Device[]
   repairs        Repair[]
   payments       Payment[]
+  invoices       Invoice[]
   partsInventory PartsInventory[]
   suppliers      Supplier[]
   purchaseOrders PurchaseOrder[]
@@ -122,7 +125,8 @@ model Shop {
   appointments   Appointment[]
   tasks          Task[]
   staffRoles     StaffRole[]
-  
+  requestOffers  RequestOffer[]
+
   @@index([tenantId])
 }
 
@@ -217,11 +221,16 @@ model Customer {
   devices      Device[]
   repairs      Repair[]
   payments     Payment[]
+  invoices     Invoice[]
   appointments Appointment[]
   notes        CustomerNote[]
 
   @@index([tenantId])
   @@index([shopId])
+  // Composite indexes for search & list queries
+  @@index([shopId, createdAt])
+  @@index([shopId, name])
+  @@index([shopId, phone])
 }
 
 model CustomerNote {
@@ -249,6 +258,9 @@ model Device {
   imei       String?
   serialNo   String?
   price      Int?
+  costPrice  Int?
+  soldPrice  Int?
+  photoUrl   String?
   status     DeviceStatus @default(ACTIVE)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
@@ -261,6 +273,9 @@ model Device {
   @@index([shopId])
   @@index([customerId])
   @@unique([shopId, imei])
+  // Composite index for device listing
+  @@index([shopId, createdAt])
+  @@index([shopId, brand])
 }
 
 model Repair {
@@ -275,6 +290,7 @@ model Repair {
   diagnosis               String?
   estimatedCost           Int?
   finalCost               Int?
+  advancePayment          Int?         @default(0)
   technicianId            String?
   priority                Priority     @default(MEDIUM)
   estimatedCompletionDate DateTime?
@@ -285,6 +301,7 @@ model Repair {
   device          Device            @relation(fields: [deviceId], references: [id], onDelete: Cascade)
   shop            Shop              @relation(fields: [shopId], references: [id], onDelete: Cascade)
   technician      User?             @relation(fields: [technicianId], references: [id], onDelete: SetNull)
+  invoices        Invoice[]
   photos          Photo[]
   notifications   Notification[]
   payments        Payment[]
@@ -293,11 +310,18 @@ model Repair {
   notes           RepairNote[]
   timeline        RepairTimelineEvent[]
   tasks             Task[]
+  sourceRequestId String?      // FK to ServiceRequest (nullable)
+
   @@index([tenantId])
   @@index([shopId])
   @@index([deviceId])
   @@index([customerId])
   @@index([technicianId])
+  // Composite indexes for 300-shop scale
+  @@index([shopId, createdAt])
+  @@index([shopId, status])
+  @@index([shopId, customerId])
+  @@index([tenantId, shopId])
 }
 
 enum Priority {
@@ -331,6 +355,33 @@ model RepairTimelineEvent {
   repair Repair @relation(fields: [repairId], references: [id], onDelete: Cascade)
 
   @@index([repairId])
+}
+
+// Formal invoice generated from a completed repair job (tax breakdown,
+// invoice numbering). Distinct from Payment, which records individual
+// payment transactions against a repair/customer.
+model Invoice {
+  id            String   @id @default(cuid())
+  invoiceNumber String   @unique
+  tenantId      String
+  shopId        String
+  repairId      String   @unique
+  customerId    String
+  subtotal      Float
+  taxAmount     Float
+  total         Float
+  status        String   @default("PENDING")
+  createdAt     DateTime @default(now())
+
+  tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  shop     Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  repair   Repair   @relation(fields: [repairId], references: [id], onDelete: Cascade)
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([shopId])
+  @@index([customerId])
+  @@index([createdAt])
 }
 
 model Photo {
@@ -371,6 +422,10 @@ model Notification {
   @@index([repairId])
   @@index([isRead])
   @@index([isCleared])
+  // Composite indexes for notification queries
+  @@index([shopId, isRead, createdAt])
+  @@index([shopId, isCleared, createdAt])
+  @@index([shopId, status, createdAt])
 }
 
 model EmailVerificationToken {
@@ -429,6 +484,10 @@ model Payment {
   @@index([repairId])
   @@index([customerId])
   @@index([paymentDate])
+  // Composite indexes for payment reports
+  @@index([shopId, paymentDate])
+  @@index([shopId, status])
+  @@index([shopId, customerId])
 }
 
 model PartsInventory {
@@ -459,6 +518,10 @@ model PartsInventory {
   @@index([shopId])
   @@index([category])
   @@index([supplierId])
+  // Composite indexes for inventory queries
+  @@index([shopId, isActive])
+  @@index([shopId, category])
+  @@index([shopId, partName])
 }
 
 model Supplier {
@@ -634,6 +697,10 @@ model Appointment {
   @@index([tenantId])
   @@index([shopId])
   @@index([scheduledAt])
+  // Composite indexes for appointment calendar queries
+  @@index([shopId, scheduledAt])
+  @@index([shopId, status])
+  @@index([shopId, technicianId])
 }
 
 model Task {
@@ -651,16 +718,20 @@ model Task {
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
   deletedAt         DateTime?
-  
+
   shop              Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
   assignedTo        User?    @relation("AssignedTasks", fields: [assignedToUserId], references: [id])
   createdBy         User     @relation("CreatedTasks", fields: [createdByUserId], references: [id])
   repair            Repair?  @relation(fields: [repairId], references: [id])
-  
+
   @@index([tenantId])
   @@index([shopId])
   @@index([assignedToUserId])
   @@index([status])
+  // Composite indexes for task management
+  @@index([shopId, status])
+  @@index([shopId, assignedToUserId])
+  @@index([shopId, dueDate])
 }
 
 model StaffRole {
@@ -672,9 +743,178 @@ model StaffRole {
   description String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-  
+
   shop        Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
-  
+
   @@index([tenantId])
   @@index([shopId])
+}
+
+model ContactMessage {
+  id        String   @id @default(cuid())
+  name      String
+  email     String
+  subject   String?
+  message   String
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+// ─── Archival Table ────────────────────────────────────────────────────────
+// Repairs older than 2 years (DELIVERED/PAID) are moved here by the weekly
+// archival cron job to keep the main repairs table lean and fast.
+model RepairArchive {
+  id                String   @id
+  tenantId          String
+  shopId            String
+  customerId        String
+  deviceId          String
+  reference         String
+  status            String
+  issue             String?
+  diagnosis         String?
+  estimatedCost     Int?
+  finalCost         Int?
+  technicianId      String?
+  originalCreatedAt DateTime
+  archivedAt        DateTime @default(now())
+
+  @@index([tenantId])
+  @@index([shopId])
+  @@index([archivedAt])
+  @@index([shopId, originalCreatedAt])
+}
+
+// ─── Online Request Portal (ORP) Tables ─────────────────────────────────────
+
+model ServiceRequest {
+  id                String   @id @default(uuid())
+  requestType       String   // 'repair', 'buy', 'sell', 'accessory', 'other'
+  deviceType        String?  // e.g. 'iPhone 13'
+  description       String   @db.Text
+  imageUrls         String[]
+
+  // AI Suggestions
+  aiCategory        String?
+  aiBudgetMin       Int?
+  aiBudgetMax       Int?
+
+  // Customer Input
+  customerBudgetMin Int
+  customerBudgetMax Int
+
+  // Location
+  latitude          Float?
+  longitude         Float?
+  locationText      String?
+
+  // Customer Contact
+  customerName      String
+  customerPhone     String
+  customerEmail     String?
+
+  // Status: pending, offered, confirmed, in_progress, completed, cancelled
+  status            String   @default("pending")
+
+  // Accepted Offer
+  acceptedOfferId   String?  @unique // unique constraint for one-to-one relation
+  acceptedOffer     RequestOffer? @relation("AcceptedOffer", fields: [acceptedOfferId], references: [id])
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @default(now()) @updatedAt
+
+  offers            RequestOffer[] @relation("RequestOffers")
+  deliveryJobs      DeliveryJob[]
+
+  @@index([status])
+  @@index([latitude, longitude])
+}
+
+model RequestOffer {
+  id              String   @id @default(uuid())
+  requestId       String
+  request         ServiceRequest @relation("RequestOffers", fields: [requestId], references: [id], onDelete: Cascade)
+
+  shopId          String
+  shop            Shop     @relation(fields: [shopId], references: [id])
+
+  quotedAmount    Int
+  message         String?  @db.Text
+
+  // Status: pending, accepted, rejected, expired
+  status          String   @default("pending")
+
+  createdAt       DateTime @default(now())
+
+  acceptedForRequest ServiceRequest? @relation("AcceptedOffer")
+  deliveryJobs       DeliveryJob[]
+
+  @@index([requestId])
+  @@index([shopId])
+}
+
+model DeliveryJob {
+  id              String   @id @default(uuid())
+
+  requestId       String
+  request         ServiceRequest @relation(fields: [requestId], references: [id])
+
+  offerId         String
+  offer           RequestOffer   @relation(fields: [offerId], references: [id])
+
+  pickupAddress   String?
+  deliveryAddress String?
+
+  partner         String   @default("manual") // 'manual', 'pickme', etc.
+
+  // Status: pending, picked_up, delivered, failed
+  status          String   @default("pending")
+
+  createdAt       DateTime @default(now())
+}
+
+model DemoBooking {
+  id        String   @id @default(cuid())
+  name      String
+  email     String
+  phone     String?
+  date      DateTime
+  time      String
+  notes     String?
+  status    String   @default("PENDING") // PENDING, SCHEDULED, COMPLETED, CANCELLED
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ─── Activity Logs ───────────────────────────────────────────────────────────
+
+model ActivityLog {
+  id          String   @id @default(cuid())
+  tenantId    String
+  shopId      String
+
+  // Who did it
+  userId      String
+  userName    String   // Stored at write time (denormalized for speed)
+  userRole    String
+
+  // What they did
+  action      String   // e.g. "CREATE_REPAIR", "UPDATE_PAYMENT", "DELETE_CUSTOMER"
+  entity      String   // e.g. "Repair", "Payment", "Customer"
+  entityId    String?  // ID of the affected record
+
+  // Details (JSON blob for flexible data)
+  details     Json?    // e.g. { repairRef: "REP-001", amount: 5000, status: "PAID" }
+
+  // Financial fields (denormalized for quick log queries)
+  amount      Float?   // Any monetary value involved in the action
+  amountLabel String?  // e.g. "Labour Cost", "Part Purchase", "Payment Received"
+
+  createdAt   DateTime @default(now())
+
+  @@index([shopId])
+  @@index([userId])
+  @@index([shopId, createdAt])
+  @@index([shopId, action])
+  @@index([tenantId, shopId, createdAt])
 }

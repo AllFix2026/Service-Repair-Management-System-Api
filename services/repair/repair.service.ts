@@ -12,7 +12,13 @@ export const getTenantRepairs = async (
 
   return prisma.repair.findMany({
     where: { tenantId },
-    include: { customer: true, device: true, technician: { select: { id: true, email: true, fullName: true, role: true } } },
+    include: { 
+      customer: true, 
+      device: true, 
+      technician: { select: { id: true, email: true, fullName: true, role: true } },
+      repairPartsUsed: { include: { part: true } },
+      photos: { orderBy: { createdAt: 'asc' } }
+    },
     orderBy: { createdAt: 'desc' },
     ...(hasPagination ? { skip, take } : {}),
   });
@@ -26,9 +32,10 @@ export const getTenantRepairById = async (id: string, tenantId: string) => {
       device: true, 
       technician: { select: { id: true, email: true, fullName: true, role: true } }, 
       notes: { include: { user: { select: { id: true, fullName: true } } }, orderBy: { createdAt: 'desc' } },
-      timeline: { orderBy: { createdAt: 'desc' } }
+      timeline: { orderBy: { createdAt: 'desc' } },
+      photos: { orderBy: { createdAt: 'asc' } },
+      repairPartsUsed: { include: { part: true } }
     },
-
   });
 
   if (!repair) {
@@ -53,17 +60,64 @@ export const createTenantRepair = async (
     finalCost?: number;
     technicianId?: string;
     status?: any;
+    photoUrls?: string[];
+    userId: string;
+    partsUsed?: { partId: string; quantity: number; unitPrice: number; }[];
+    advancePayment?: number;
   }
 ) => {
   const reference = `REP-${Date.now().toString().slice(-6)}${Math.floor(Math.random() * 1000)}`;
   
+  // Extract non-DB fields before saving
+  const { photoUrls, partsUsed, userId, ...repairData } = data;
+
   const repair = await prisma.repair.create({
     data: { 
       tenantId, 
       reference,
-      ...data 
+      ...repairData 
     },
   });
+
+  // Save photos to Photo table
+  if (photoUrls && photoUrls.length > 0) {
+    await prisma.photo.createMany({
+      data: photoUrls.map((url: string) => ({
+        tenantId,
+        repairId: repair.id,
+        url,
+        stage: 'INTAKE',
+      }))
+    });
+  }
+
+  // Save Parts Used
+  if (data.partsUsed && data.partsUsed.length > 0) {
+    await prisma.repairPartsUsed.createMany({
+      data: data.partsUsed.map(part => ({
+        repairId: repair.id,
+        partId: part.partId,
+        quantityUsed: part.quantity,
+        unitPrice: part.unitPrice,
+        totalPrice: part.unitPrice * part.quantity,
+        addedByUserId: data.userId,
+      }))
+    });
+
+    // Deduct inventory quantities
+    for (const part of data.partsUsed) {
+      try {
+        await prisma.partsInventory.update({
+          where: { id: part.partId },
+          data: {
+            quantityInStock: { decrement: part.quantity }
+          }
+        });
+      } catch (err: any) {
+        console.error(`Failed to deduct inventory for part ${part.partId}:`, err);
+      }
+    }
+  }
 
   await logTimelineEvent(repair.id, 'CREATED', `Repair created with status ${data.status || 'NOT_STARTED'}`);
 
@@ -88,25 +142,106 @@ export const createTenantRepair = async (
   return repair;
 };
 
+import { sendSms } from "@/services/notification/notification.service";
+
 export const updateTenantRepair = async (
   id: string,
   tenantId: string,
   data: Record<string, any>
 ) => {
   try {
-    const oldRepair = await prisma.repair.findFirst({ where: { id }, select: { status: true } });
+    const oldRepair = await prisma.repair.findFirst({ 
+      where: { id }, 
+      include: { customer: true, device: true, shop: { select: { name: true, address: true, city: true, phone: true } } } 
+    });
     
+    // Extract non-db fields from data so it doesn't try to update them in the DB
+    const { autoUpdateCustomer, userId, partsUsed, ...updateData } = data;
+
     const repair = await prisma.repair.update({
       where: { id },
-      data,
+      data: updateData,
     });
 
+    if (partsUsed !== undefined) {
+      // Fetch existing parts to restore inventory
+      const existingParts = await prisma.repairPartsUsed.findMany({
+        where: { repairId: id }
+      });
+      
+      // Restore inventory
+      for (const ep of existingParts) {
+        try {
+          await prisma.partsInventory.update({
+            where: { id: ep.partId },
+            data: { quantityInStock: { increment: ep.quantityUsed } }
+          });
+        } catch (err) { console.error("Restore inventory error:", err); }
+      }
+
+      // Delete existing
+      await prisma.repairPartsUsed.deleteMany({
+        where: { repairId: id }
+      });
+
+      // Add new parts
+      if (partsUsed.length > 0) {
+        await prisma.repairPartsUsed.createMany({
+          data: partsUsed.map((part: any) => ({
+            repairId: id,
+            partId: part.partId,
+            quantityUsed: part.quantity,
+            unitPrice: part.unitPrice,
+            totalPrice: part.unitPrice * part.quantity,
+            addedByUserId: userId,
+          }))
+        });
+
+        // Deduct inventory
+        for (const part of partsUsed) {
+          try {
+            await prisma.partsInventory.update({
+              where: { id: part.partId },
+              data: { quantityInStock: { decrement: part.quantity } }
+            });
+          } catch (err) { console.error("Deduct inventory error:", err); }
+        }
+      }
+    }
+
     try {
-      if (data.status && data.status !== oldRepair?.status) {
-        await logTimelineEvent(id, 'STATUS_CHANGE', `Status changed from ${oldRepair?.status || 'UNKNOWN'} to ${data.status}`);
+      if (updateData.status) {
+        await logTimelineEvent(id, 'STATUS_CHANGE', `Status changed from ${oldRepair?.status || 'UNKNOWN'} to ${updateData.status}`);
+        
+        // Send SMS to customer if requested
+        if (autoUpdateCustomer && oldRepair?.customer?.phone) {
+          const shopName = oldRepair.shop?.name || "Our Shop";
+          const ref = oldRepair.reference;
+          const statusText = updateData.status.replace(/_/g, " ");
+          const deviceName = oldRepair.device ? `${oldRepair.device.brand} ${oldRepair.device.model}` : "your device";
+          const issue = oldRepair.issue ? ` (${oldRepair.issue})` : "";
+          const addressParts = [oldRepair.shop?.address, oldRepair.shop?.city].filter(Boolean).join(", ");
+          const shopContact = oldRepair.shop?.phone ? `\nContact: ${oldRepair.shop.phone}` : "";
+          const shopFooter = `\n${shopName}${addressParts ? `\n${addressParts}` : ""}${shopContact}`;
+          let message = `Hi ${oldRepair.customer.name},\nYour repair task (${ref}) for ${deviceName}${issue} status has been updated to: ${statusText}.${shopFooter}`;
+
+          if (['READY_TO_TAKE', 'COMPLETED', 'DELIVERED'].includes(updateData.status)) {
+            const invoiceUrl = `https://www.allfix.space/invoice/${ref}`;
+            message = `Hi ${oldRepair.customer.name},\nYour repair task (${ref}) for ${deviceName}${issue} is done, you can collect your device.\n\nView Invoice: ${invoiceUrl}${shopFooter}`;
+          }
+
+          if (updateData.status === 'PAID') {
+            const invoiceUrl = `https://www.allfix.space/invoice/${ref}`;
+            message = `Hi ${oldRepair.customer.name},\nThank you for collecting your device and paying for our service! We truly appreciate your trust in ${shopName}.\n\nWe hope to see you again whenever you need us. 😊\n\nView Invoice: ${invoiceUrl}${shopFooter}`;
+          }
+          
+          await sendSms(oldRepair.customer.phone, message).catch((err) => {
+            console.error("Failed to send SMS:", err);
+          });
+        }
       }
     } catch (logError) {
-      console.error("Non-fatal: Failed to log timeline event:", logError);
+      console.error("Non-fatal: Failed to log timeline event or send SMS:", logError);
     }
 
     // Synchronize with Invoice (Payment record)
@@ -158,6 +293,62 @@ export const addRepairNote = async (repairId: string, userId: string, text: stri
   });
 
   await logTimelineEvent(repairId, 'NOTE_ADDED', 'New technician note added', userId);
+
+  // Handle Mentions and trigger notifications
+  try {
+    const repair = await prisma.repair.findUnique({
+      where: { id: repairId },
+      select: { reference: true, tenantId: true, shopId: true }
+    });
+
+    if (repair) {
+      // Regex to match words starting with @ (e.g., @Saiethya Suresh) up to next @ or space
+      const mentionRegex = /@([^@\n\r\t]+?)(?=\s|@|$)/g;
+      let match;
+      const mentionedNames: string[] = [];
+      while ((match = mentionRegex.exec(text)) !== null) {
+        if (match[1] && match[1].trim()) {
+          mentionedNames.push(match[1].trim());
+        }
+      }
+
+      if (mentionedNames.length > 0) {
+        // Find users with these names in the tenant
+        const matchingUsers = await prisma.user.findMany({
+          where: {
+            tenantId: repair.tenantId,
+            fullName: { in: mentionedNames, mode: 'insensitive' }
+          },
+          select: { id: true, fullName: true }
+        });
+
+        // Create notification for each mentioned user
+        const authorName = note.user?.fullName || "A team member";
+        for (const user of matchingUsers) {
+          // Prevent notifying oneself
+          if (user.id === userId) continue;
+
+          await prisma.notification.create({
+            data: {
+              tenantId: repair.tenantId,
+              shopId: repair.shopId,
+              repairId: repairId,
+              to: user.id,
+              channel: "IN_APP",
+              title: "You were mentioned in a note",
+              message: `${authorName} mentioned you in repair task #${repair.reference}`,
+              type: "REPAIR",
+              status: "PENDING",
+              isRead: false,
+              isCleared: false
+            }
+          });
+        }
+      }
+    }
+  } catch (error) {
+    console.error("Non-fatal: Failed to send mention notifications:", error);
+  }
 
   return note;
 };

@@ -7,21 +7,21 @@ const VALID_PAYMENT_STATUSES = ["PENDING", "OVERDUE", "COMPLETED", "FAILED"] as 
 // Map user-friendly status names to database enum values
 export const mapStatusToDatabase = (status: string | undefined): string | undefined => {
   if (!status) return undefined;
-  
+
   const statusUpper = status.toUpperCase();
-  
+
   // Direct mapping for database values
   if (VALID_PAYMENT_STATUSES.includes(statusUpper as any)) {
     return statusUpper;
   }
-  
+
   // Mapping for user-friendly names
   const statusMap: Record<string, string> = {
     "PAID": "COMPLETED",
     "PAY": "COMPLETED",
     "COMPLETE": "COMPLETED",
   };
-  
+
   const mappedStatus = statusMap[statusUpper];
   if (!mappedStatus) {
     throw {
@@ -29,7 +29,7 @@ export const mapStatusToDatabase = (status: string | undefined): string | undefi
       message: `Invalid status "${status}". Allowed values: PENDING, OVERDUE, COMPLETED, FAILED`,
     };
   }
-  
+
   return mappedStatus;
 };
 
@@ -47,6 +47,7 @@ export const getInvoices = async (tenantId: string) => {
             customer: { select: { name: true, phone: true } },
             device: { select: { brand: true, model: true } },
             technician: { select: { fullName: true } },
+            repairPartsUsed: true,
           },
         },
         customer: { select: { name: true, phone: true } },
@@ -55,7 +56,10 @@ export const getInvoices = async (tenantId: string) => {
       orderBy: { paymentDate: "desc" },
     }),
     prisma.device.findMany({
-      where: { tenantId },
+      where: {
+        tenantId,
+        status: { in: ["SOLD", "ON_SALE", "COLLECTED"] },
+      },
       include: {
         customer: { select: { name: true, phone: true } },
         shop: { select: { name: true, logoUrl: true } },
@@ -92,35 +96,94 @@ export const getInvoices = async (tenantId: string) => {
     source: "payment" as const,
     shopName: p.shop?.name ?? null,
     shopLogoUrl: p.shop?.logoUrl ?? null,
+    advancePayment: p.repair?.advancePayment ?? 0,
+    partsCost: p.repair
+      ? (p.repair.repairPartsUsed || []).reduce((sum, part) => sum + (part.totalPrice || (part.unitPrice * part.quantityUsed) || 0), 0)
+      : 0,
+    laborCost: p.repair
+      ? Math.max(0, (p.repair.finalCost || p.repair.estimatedCost || Number(p.amount)) - ((p.repair.repairPartsUsed || []).reduce((sum, part) => sum + (part.totalPrice || (part.unitPrice * part.quantityUsed) || 0), 0)))
+      : Number(p.amount) * 0.4,
   }));
 
-  const deviceInvoices = devices.map((d) => ({
-    id: `dev-${d.id}`,
-    invoiceId: `#DEV-${d.id.substring(0, 8).toUpperCase()}`,
-    type: "inventory_item" as const,
-    name: d.customer?.name ?? "Walk-In",
-    phone: d.customer?.phone ?? "—",
-    amount: d.price ? Number(d.price) : 0,
-    status:
-      d.status === "SOLD"
-        ? "Paid"
-        : d.status === "ON_SALE"
-        ? "Pending"
-        : "Pending",
-    date: d.createdAt.toISOString(),
-    staff: "Admin",
-    device: `${d.brand} ${d.model}`,
-    paymentMethod: "CASH",
-    notes: d.imei ? `IMEI: ${d.imei}` : d.serialNo ? `S/N: ${d.serialNo}` : "",
-    transactionReference: d.imei ?? d.serialNo ?? "",
-    source: "device" as const,
-    shopName: d.shop?.name ?? null,
-    shopLogoUrl: d.shop?.logoUrl ?? null,
-  }));
+  const deviceInvoices = devices.map((d) => {
+    const device = d as any;
+    return {
+      id: `dev-${device.id}`,
+      invoiceId: `#DEV-${device.id.substring(0, 8).toUpperCase()}`,
+      type: "inventory_item" as const,
+      name: device.customer?.name ?? "Walk-In",
+      phone: device.customer?.phone ?? "—",
+      amount: (device.soldPrice !== null && device.soldPrice !== undefined) ? Number(device.soldPrice) : (device.price ? Number(device.price) : 0),
+      status:
+        (device.status === "SOLD" || device.status === "COLLECTED")
+          ? "Paid"
+          : "Pending",
+      date: device.createdAt.toISOString(),
+      staff: "Admin",
+      device: `${device.brand} ${device.model}`,
+      paymentMethod: "CASH",
+      notes: device.imei ? `IMEI: ${device.imei}` : device.serialNo ? `S/N: ${device.serialNo}` : "",
+      transactionReference: device.imei ?? device.serialNo ?? "",
+      source: "device" as const,
+      shopName: device.shop?.name ?? null,
+      shopLogoUrl: device.shop?.logoUrl ?? null,
+    };
+  });
 
   return [...paymentInvoices, ...deviceInvoices].sort(
     (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
   );
+};
+
+export const generateInvoice = async (repairId: string, tenantId: string) => {
+  logger.info(`[generateInvoice] -> Auto-generating invoice for repair: ${repairId}`);
+
+  const repair = await prisma.repair.findFirst({
+    where: { id: repairId, tenantId },
+    include: {
+      customer: true,
+      device: true,
+      repairPartsUsed: true,
+    },
+  });
+
+  if (!repair) throw { status: 404, message: "Repair not found" };
+  const repairStatus = repair.status as string;
+  if (repairStatus !== "PAID" && repairStatus !== "DELIVERED" && repairStatus !== "READY_TO_TAKE") {
+    throw { status: 400, message: "Repair job is not completed yet" };
+  }
+
+  const existing = await prisma.payment.findFirst({
+    where: { repairId, tenantId },
+  });
+  if (existing) throw { status: 409, message: "Invoice already exists for this repair job" };
+
+  const partsCost = (repair.repairPartsUsed || []).reduce(
+    (sum, p) => sum + (p.totalPrice || p.unitPrice * p.quantityUsed || 0),
+    0
+  );
+  const total = repair.finalCost || repair.estimatedCost || 0;
+
+  const payment = await prisma.payment.create({
+    data: {
+      tenantId,
+      shopId: repair.shopId,
+      repairId: repair.id,
+      customerId: repair.customerId,
+      amount: total,
+      paymentMethod: "CASH" as any,
+      paymentType: "REPAIR" as any,
+      status: "COMPLETED" as any,
+      notes: `Repair: ${repair.reference || repair.id}`,
+    },
+  });
+
+  return {
+    invoiceNumber: `#REP-${repair.reference || payment.id.substring(0, 8).toUpperCase()}`,
+    subtotal: total - partsCost,
+    taxAmount: 0,
+    total,
+  };
 };
 
 export const createInvoice = async (
@@ -232,7 +295,7 @@ export const deleteInvoice = async (id: string, tenantId: string) => {
     const deviceId = id.substring(4); // Remove "dev-" prefix
     const existing = await prisma.device.findFirst({ where: { id: deviceId, tenantId } });
     if (!existing) throw { status: 404, message: "Invoice not found" };
-    
+
     await prisma.device.delete({ where: { id: deviceId } });
     return;
   }

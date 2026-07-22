@@ -266,5 +266,41 @@ export const sendPaymentConfirmationEmail = async (
   }
 
   await prisma.emailLog.create({ data: { userId, email, type: "payment_confirmation", status: "FAILED", attempts, error: lastError?.message ?? "Unknown" } });
-  throw lastError;
+};
+
+// ─── Demo Booking Status Email ────────────────────────────────────────────────
+export const sendDemoBookingStatusEmail = async (
+  email: string,
+  name: string,
+  status: 'SCHEDULED' | 'CANCELLED'
+) => {
+  const isAccepted = status === 'SCHEDULED';
+  const title = isAccepted ? "✅ Demo Booking Confirmed" : "❌ Demo Booking Declined";
+  const message = isAccepted 
+    ? `Hi ${name},<br/><br/>Great news! Your demo booking has been confirmed by our team. We're looking forward to showing you what AllFix can do.`
+    : `Hi ${name},<br/><br/>We're sorry to inform you that we are unable to accommodate your demo booking request at this time.`;
+  
+  const html = baseTemplate(`
+    <h2 style="margin:0 0 8px;color:#1e293b;font-size:24px;font-weight:700;">${title}</h2>
+    <p style="margin:0 0 24px;color:#64748b;font-size:15px;line-height:1.6;">
+      ${message}
+    </p>
+    ${isAccepted ? `
+    <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:12px;padding:24px;margin:24px 0;text-align:center;">
+      <p style="margin:0;color:#166534;font-size:16px;font-weight:700;">Our representative will reach out to you shortly with the meeting details.</p>
+    </div>` : ''}
+    <p style="margin:0;color:#64748b;font-size:14px;text-align:center;">Thank you for your interest in AllFix — Service Repair Management System!</p>
+  `);
+
+  try {
+    await resend.emails.send({
+      from: FROM_EMAIL,
+      to: email,
+      subject: `${title} — AllFix`,
+      html,
+    });
+    console.log(`✅ Demo booking status email sent to ${email}`);
+  } catch (error: any) {
+    console.error(`❌ Failed to send demo booking status email to ${email}:`, error.message);
+  }
 };

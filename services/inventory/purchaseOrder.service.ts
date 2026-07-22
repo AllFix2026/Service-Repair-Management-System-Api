@@ -1,6 +1,7 @@
 import { prisma } from "@/db/prisma";
 import { CreatePurchaseOrderRequest, UpdatePurchaseOrderStatusRequest } from "@/types/dto/inventory.dto";
 import { logger } from "@/config/logger.config";
+import { sendSms } from "@/services/notification/notification.service";
 
 export const createPurchaseOrder = async (
   data: CreatePurchaseOrderRequest,
@@ -11,7 +12,7 @@ export const createPurchaseOrder = async (
 
   const totalAmount = data.items.reduce((sum, item) => sum + (item.quantity * item.unitCost), 0);
 
-  return await prisma.purchaseOrder.create({
+  const po = await prisma.purchaseOrder.create({
     data: {
       tenantId,
       shopId,
@@ -33,9 +34,24 @@ export const createPurchaseOrder = async (
     },
     include: {
       items: true,
-      supplier: true
+      supplier: true,
+      shop: { select: { name: true, address: true, city: true, phone: true } }
     }
   });
+
+  if (po.supplier?.phone) {
+    const shopName = po.shop?.name || "Our Shop";
+    const itemList = po.items.map(item => `${item.quantity}x ${item.partName}`).join(", ");
+    const addressParts = [po.shop?.address, po.shop?.city].filter(Boolean).join(", ");
+    const shopContact = po.shop?.phone ? `\nContact: ${po.shop.phone}` : "";
+    const shopFooter = `\n${shopName}${addressParts ? `\n${addressParts}` : ""}${shopContact}`;
+    const message = `Hello ${po.supplier.name},\nA new Purchase Order (${po.orderNumber}) has been created by ${shopName}.\nItems: ${itemList}\nTotal Amount: Rs. ${totalAmount}${shopFooter}`;
+    await sendSms(po.supplier.phone, message).catch(err => {
+      console.error("Non-fatal: Failed to send SMS for PO creation:", err);
+    });
+  }
+
+  return po;
 };
 
 export const getPurchaseOrders = async (tenantId: string, shopId: string) => {
