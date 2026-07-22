@@ -60,7 +60,6 @@ enum PaymentStatus {
   OVERDUE
   COMPLETED
   FAILED
-  OVERDUE
 }
 
 enum DeviceStatus {
