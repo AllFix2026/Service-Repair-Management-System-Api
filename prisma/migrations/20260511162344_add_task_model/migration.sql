@@ -29,8 +29,7 @@ CREATE TYPE "PaymentStatus" AS ENUM ('PENDING', 'COMPLETED', 'FAILED');
 -- CreateEnum
 CREATE TYPE "DeviceStatus" AS ENUM ('ACTIVE', 'AVAILABLE', 'ON_SALE', 'SOLD', 'IN_SERVICE', 'COLLECTED');
 
--- CreateEnum
-CREATE TYPE "Priority" AS ENUM ('URGENT', 'HIGH', 'MEDIUM', 'LOW');
+-- Duplicate Priority enum removed to fix migration failure
 
 -- AlterEnum
 ALTER TYPE "RepairStatus" ADD VALUE 'PAID';
