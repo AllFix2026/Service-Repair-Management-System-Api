@@ -9,6 +9,7 @@ export const registerShopSchema = z.object({
   shop_id: z.string().uuid("shop_id must be a valid UUID"),
   tenant_id: z.string().uuid("tenant_id must be a valid UUID"),
   shop_name: z.string().min(1, "shop_name is required"),
+  businessRegistration: z.string().optional(),
   brn: z.string().optional(),
   address: z.string().optional(),
   city: z.string().optional(),
