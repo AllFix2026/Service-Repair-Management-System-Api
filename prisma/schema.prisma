@@ -57,9 +57,9 @@ enum PaymentType {
 
 enum PaymentStatus {
   PENDING
+  OVERDUE
   COMPLETED
   FAILED
-  OVERDUE
 }
 
 enum DeviceStatus {
