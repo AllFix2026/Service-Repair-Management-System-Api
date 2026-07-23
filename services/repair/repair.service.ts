@@ -222,17 +222,34 @@ export const updateTenantRepair = async (
           const issue = oldRepair.issue ? ` (${oldRepair.issue})` : "";
           const addressParts = [oldRepair.shop?.address, oldRepair.shop?.city].filter(Boolean).join(", ");
           const shopContact = oldRepair.shop?.phone ? `\nContact: ${oldRepair.shop.phone}` : "";
+          // Calculate financial summary for customer SMS
+          const totalCost = Number(updateData.finalCost ?? oldRepair.finalCost ?? updateData.estimatedCost ?? oldRepair.estimatedCost ?? 0);
+          const advancePaid = Number(updateData.advancePayment ?? oldRepair.advancePayment ?? 0);
+          const remaining = Math.max(0, totalCost - advancePaid);
+
+          let costDetails = "";
+          if (totalCost > 0) {
+            if (updateData.status === 'PAID' || remaining === 0) {
+              costDetails = `\nTotal Paid: Rs. ${totalCost.toLocaleString()}`;
+            } else if (advancePaid > 0) {
+              costDetails = `\nTotal Amount: Rs. ${totalCost.toLocaleString()}\nAdvance Paid: -Rs. ${advancePaid.toLocaleString()}\nBalance Due: Rs. ${remaining.toLocaleString()}`;
+            } else {
+              costDetails = `\nTotal Amount: Rs. ${totalCost.toLocaleString()}`;
+            }
+          }
+
           const shopFooter = `\n${shopName}${addressParts ? `\n${addressParts}` : ""}${shopContact}`;
-          let message = `Hi ${oldRepair.customer.name},\nYour repair task (${ref}) for ${deviceName}${issue} status has been updated to: ${statusText}.${shopFooter}`;
+
+          let message = `Hi ${oldRepair.customer.name},\nYour repair task (${ref}) for ${deviceName}${issue} status has been updated to: ${statusText}.${costDetails}${shopFooter}`;
 
           if (['READY_TO_TAKE', 'COMPLETED', 'DELIVERED'].includes(updateData.status)) {
             const invoiceUrl = `https://www.allfix.space/invoice/${ref}`;
-            message = `Hi ${oldRepair.customer.name},\nYour repair task (${ref}) for ${deviceName}${issue} is done, you can collect your device.\n\nView Invoice: ${invoiceUrl}${shopFooter}`;
+            message = `Hi ${oldRepair.customer.name},\nYour repair task (${ref}) for ${deviceName}${issue} is ready for collection!${costDetails}\n\nView & Download Invoice: ${invoiceUrl}${shopFooter}`;
           }
 
           if (updateData.status === 'PAID') {
             const invoiceUrl = `https://www.allfix.space/invoice/${ref}`;
-            message = `Hi ${oldRepair.customer.name},\nThank you for collecting your device and paying for our service! We truly appreciate your trust in ${shopName}.\n\nWe hope to see you again whenever you need us. 😊\n\nView Invoice: ${invoiceUrl}${shopFooter}`;
+            message = `Hi ${oldRepair.customer.name},\nThank you for collecting your device and paying for our service! We truly appreciate your trust in ${shopName}.${costDetails}\n\nWe hope to see you again whenever you need us. 😊\n\nView & Download Invoice: ${invoiceUrl}${shopFooter}`;
           }
           
           await sendSms(oldRepair.customer.phone, message).catch((err) => {

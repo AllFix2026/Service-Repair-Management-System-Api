@@ -67,12 +67,14 @@ export const getPublicInvoiceByRef = async (req: Request, res: Response) => {
       diagnosis: repair.diagnosis,
       estimatedCost: repair.estimatedCost,
       finalCost:     repair.finalCost,
+      advancePayment: repair.advancePayment ?? 0,
       createdAt:     repair.createdAt,
       updatedAt:     repair.updatedAt,
       estimatedCompletionDate: repair.estimatedCompletionDate,
 
       customer: {
         name: repair.customer?.name ?? "Customer",
+        phone: repair.customer?.phone ?? "—",
       },
 
       device: {

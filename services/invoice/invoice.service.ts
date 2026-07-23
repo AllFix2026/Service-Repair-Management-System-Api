@@ -34,38 +34,44 @@ export const getInvoices = async (tenantId: string) => {
     }),
   ]);
 
-  const paymentInvoices = payments.map((p) => ({
-    id: p.id,
-    invoiceId: p.repair
-      ? `#REP-${p.repair.reference}`
-      : `#PAY-${p.id.substring(0, 8).toUpperCase()}`,
-    type: p.repair || (p.notes && p.notes.startsWith("Repair:")) ? "client_repair" : "inventory_item",
-    name: p.repair?.customer?.name ?? p.customer?.name ?? "Walk-In",
-    phone: p.repair?.customer?.phone ?? p.customer?.phone ?? "—",
-    amount: Number(p.amount),
-    status:
-      p.status === "COMPLETED"
-        ? "Paid"
-        : p.status === "PENDING"
-        ? "Pending"
-        : "Failed",
-    date: p.paymentDate.toISOString(),
-    staff: p.repair?.technician?.fullName ?? "Admin",
-    device: p.repair?.device
-      ? `${p.repair.device.brand} ${p.repair.device.model}`
-      : "Internal",
-    paymentMethod: p.paymentMethod,
-    notes: p.notes ?? "",
-    transactionReference: p.transactionReference ?? "",
-    source: "payment" as const,
-    advancePayment: p.repair?.advancePayment ?? 0,
-    partsCost: p.repair
+  const paymentInvoices = payments.map((p) => {
+    const totalAmount = Number(p.amount);
+    const partsCost = p.repair
       ? (p.repair.repairPartsUsed || []).reduce((sum, part) => sum + (part.totalPrice || (part.unitPrice * part.quantityUsed) || 0), 0)
-      : 0,
-    laborCost: p.repair
-      ? Math.max(0, (p.repair.finalCost || p.repair.estimatedCost || Number(p.amount)) - ((p.repair.repairPartsUsed || []).reduce((sum, part) => sum + (part.totalPrice || (part.unitPrice * part.quantityUsed) || 0), 0)))
-      : Number(p.amount) * 0.4,
-  }));
+      : totalAmount * 0.6;
+    const laborCost = p.repair
+      ? Math.max(0, (p.repair.finalCost || p.repair.estimatedCost || totalAmount) - partsCost)
+      : totalAmount - partsCost;
+
+    return {
+      id: p.id,
+      invoiceId: p.repair
+        ? `#REP-${p.repair.reference}`
+        : `#PAY-${p.id.substring(0, 8).toUpperCase()}`,
+      type: p.repair || (p.notes && p.notes.startsWith("Repair:")) ? "client_repair" : "inventory_item",
+      name: p.repair?.customer?.name ?? p.customer?.name ?? "Walk-In",
+      phone: p.repair?.customer?.phone ?? p.customer?.phone ?? "—",
+      amount: totalAmount,
+      status:
+        p.status === "COMPLETED"
+          ? "Paid"
+          : p.status === "PENDING"
+          ? "Pending"
+          : "Failed",
+      date: p.paymentDate.toISOString(),
+      staff: p.repair?.technician?.fullName ?? "Admin",
+      device: p.repair?.device
+        ? `${p.repair.device.brand} ${p.repair.device.model}`
+        : "Internal",
+      paymentMethod: p.paymentMethod,
+      notes: p.notes ?? "",
+      transactionReference: p.transactionReference ?? "",
+      source: "payment" as const,
+      advancePayment: p.repair?.advancePayment ?? 0,
+      partsCost,
+      laborCost,
+    };
+  });
 
   const deviceInvoices = devices.map((d) => {
     const device = d as any;
