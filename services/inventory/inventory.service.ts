@@ -24,6 +24,7 @@ export const createInventoryItem = async (
       minimumStockLevel: data.minimumStockLevel,
       unitCost: data.unitCost,
       sellingPrice: data.sellingPrice,
+      imageUrl: data.imageUrl ?? null,
     },
   });
 
@@ -96,6 +97,7 @@ export const getInventoryItems = async (
         unitCost: true,
         sellingPrice: true,
         supplierName: true,
+        imageUrl: true,
       },
       orderBy: { createdAt: "desc" },
       skip: (page - 1) * limit,
@@ -178,6 +180,7 @@ export const updateInventoryItem = async (
       ...(data.minimumStockLevel !== undefined && { minimumStockLevel: data.minimumStockLevel }),
       ...(data.unitCost !== undefined && { unitCost: data.unitCost }),
       ...(data.sellingPrice !== undefined && { sellingPrice: data.sellingPrice }),
+      ...(data.imageUrl !== undefined && { imageUrl: data.imageUrl }),
     },
   });
 

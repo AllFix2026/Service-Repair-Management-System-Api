@@ -52,6 +52,7 @@ function buildSettingsResponse(shop: any) {
       appearance: shop.settings?.appearance ?? {},
       customerTiers: (shop.settings?.appearance as any)?.customerTiers ?? [],
       securityRules: shop.settings?.securityRules ?? {},
+      featureFlags: shop.settings?.featureFlags ?? {},
     },
     logoUrl: shop.logoUrl,
     subscription: {
