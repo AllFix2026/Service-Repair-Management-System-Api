@@ -87,11 +87,11 @@ export const getInvoices = async (tenantId: string) => {
       phone: p.repair?.customer?.phone ?? p.customer?.phone ?? "—",
       amount: totalAmount,
       status:
-        p.status === "COMPLETED"
+        (p.status as string) === "COMPLETED"
           ? "Paid"
-          : p.status === "OVERDUE"
+          : (p.status as string) === "OVERDUE"
           ? "Overdue"
-          : p.status === "PENDING"
+          : (p.status as string) === "PENDING"
           ? "Pending"
           : "Failed",
       date: p.paymentDate.toISOString(),

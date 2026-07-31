@@ -9,6 +9,7 @@ export interface CreateInventoryItemRequest {
   minimumStockLevel: number;
   unitCost: number;
   sellingPrice: number;
+  imageUrl?: string | null;
 }
 
 export interface UpdateInventoryItemRequest {
@@ -22,6 +23,7 @@ export interface UpdateInventoryItemRequest {
   minimumStockLevel?: number;
   unitCost?: number;
   sellingPrice?: number;
+  imageUrl?: string | null;
 }
 
 export interface InventoryItemResponse {
@@ -34,6 +36,7 @@ export interface InventoryItemResponse {
   unitCost: number;
   sellingPrice: number;
   supplierName: string | null;
+  imageUrl?: string | null;
 }
 
 export interface LowStockItem {

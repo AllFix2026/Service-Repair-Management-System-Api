@@ -11,6 +11,7 @@ export const createInventoryItemSchema = z.object({
   minimumStockLevel: z.number().int().min(0, "Minimum stock level must be >= 0"),
   unitCost: z.number().min(0, "Unit cost must be >= 0"),
   sellingPrice: z.number().min(0, "Selling price must be >= 0"),
+  imageUrl: z.string().optional().nullable(),
 });
 
 export const updateInventoryItemSchema = z.object({
@@ -24,6 +25,7 @@ export const updateInventoryItemSchema = z.object({
   minimumStockLevel: z.number().int().min(0).optional(),
   unitCost: z.number().min(0).optional(),
   sellingPrice: z.number().min(0).optional(),
+  imageUrl: z.string().optional().nullable(),
 });
 
 export const createSupplierSchema = z.object({

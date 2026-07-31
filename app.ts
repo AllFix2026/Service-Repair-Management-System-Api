@@ -14,7 +14,7 @@ const app: Application = express();
 
 app.use(
   express.json({
-    limit: "5mb",
+    limit: "50mb",
     verify: (req: any, _res, buf) => {
       if (req.originalUrl.includes("/webhook")) {
         req.rawBody = buf;
@@ -28,7 +28,7 @@ app.use(
   express.urlencoded({
     extended: true,
     parameterLimit: 100000,
-    limit: "5mb",
+    limit: "50mb",
   }),
 );
 app.use(cookieParser());
